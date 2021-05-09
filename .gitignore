@@ -1,0 +1,7 @@
+.vscode
+/data/
+.ipynb_checkpoints
+/src/notebooks/old/
+/src/notebooks/experiments/
+/debug/
+__pycache__/

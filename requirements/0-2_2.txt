@@ -1,0 +1,9 @@
+pandas
+matplotlib
+jupyter
+ipykernel
+
+h3
+folium
+branca
+geojson
