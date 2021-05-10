@@ -5,6 +5,9 @@ PATH_TRIPS = R"..\..\data\trips.pkl"
 PATH_TRIPS_GROUPED = R"..\..\data\trips_grouped.pkl"
 PATH_SCENARIOS = R"..\..\data\scenarios.pkl"
 PATH_SCENARIOS_REDUCED = R"..\..\data\scenarios_reduced.pkl"
+PATH_SCENARIO_PROBABILITY = R"..\..\data\scenarios_probability.pkl"
+PATH_DISTANCES = R"..\..\data\distances.pkl"
+
 
 H3_RESOLUTION = 6
 PERIOD_DURATION = 4  # in hours
