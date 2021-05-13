@@ -120,6 +120,7 @@ class StochasticProgram(MeasureTimeTrait):
         self.model.solve(solver=self.solver)
         print("Status:", LpStatus[self.model.status])
         print("Optimal Value of Objective Function: ", value(self.model.objective))
+        print(f"Runtime without preprocessing: {self.model.solutionTime:.2f} seconds")
 
     def show_relocations(self):
         print("suggested relocations:")
@@ -140,21 +141,49 @@ class StochasticProgram(MeasureTimeTrait):
                                 f"[{s}] relocate {int(number_relocations)} {m}s to {j}"
                             )
 
-    def get_result_df(self):
-        return pd.DataFrame.from_dict(
+    def get_results_by_tuple_df(self):
+        results = pd.DataFrame.from_dict(
             {
                 (i, j, t, m, s): {
                     "relocations": int(value(self.R[i][j][t][m][s])),
                     "trips": int(value(self.Y[i][j][t][m][s])),
+                    "unfulfilled_demand": int(value(self.U[i][j][t][m][s])),
                 }
-                for i in self.R.keys()
-                for j in self.R[i].keys()
-                for t in self.R[i][j].keys()
-                for m in self.R[i][j][t].keys()
-                for s in self.R[i][j][t][m].keys()
+                for i in self.regions
+                for j in self.regions
+                for t in self.periods[:-1]
+                for m in self.vehicle_types
+                for s in range(self.n_scenarios)
             },
             orient="index",
         )
+
+        results.index = results.index.set_names(
+            ["start_hex_ids", "end_hex_ids", "time", "vehicle_types", "scenario"]
+        )
+        return results
+
+    def get_results_by_region_df(self):
+        results = pd.DataFrame.from_dict(
+            {
+                (i, t, m, s): {
+                    "unfulfilled_demand": int(value(self.bigU[i][t][m][s])),
+                    "has_unfulfilled_demand": int(value(self.bigUb[i][t][m][s])),
+                    "has_remaining_vehicles": int(value(self.Rb[i][t][m][s])),
+                    "n_vehicles": int(value(self.X[i][t][m][s])),
+                }
+                for i in self.regions
+                for t in self.periods[:-1]
+                for m in self.vehicle_types
+                for s in range(self.n_scenarios)
+            },
+            orient="index",
+        )
+
+        results.index = results.index.set_names(
+            ["hex_ids", "time", "vehicle_types", "scenario"]
+        )
+        return results
 
     def create_model(self):
         self.create_variables()
@@ -236,6 +265,7 @@ class StochasticProgram(MeasureTimeTrait):
         self.create_big_u_sum_constraints()
         self.create_relocation_binary_constraints()
         self.create_unfulfilled_demand_binary_constraints()
+        self.create_no_refused_demand_constraints()
         self.create_max_trips_constraints()
         self.create_vehicle_movement_constraints()
         self.create_initial_allocation_constraints()
@@ -314,6 +344,20 @@ class StochasticProgram(MeasureTimeTrait):
         self.constraints[
             "unfulfilled_demand_binary"
         ] = unfulfilled_demand_binary_constraints
+
+    def create_no_refused_demand_constraints(self):
+        no_refused_demand_constraints = [
+            (
+                (self.bigUb[i][t][m][s] + self.Rb[i][t][m][s] <= 1),
+                f"only allow to refuse demand if demand cannot be fulfilled due to lack of vehicles"
+                + f"in region {i} at period {t} with {m} in scenario {s}",
+            )
+            for i in self.regions
+            for t in self.periods[:-1]
+            for m in self.vehicle_types
+            for s in range(self.n_scenarios)
+        ]
+        self.constraints["no_refused_demand"] = no_refused_demand_constraints
 
     def create_max_trips_constraints(self):
         max_trips_constraints = [
