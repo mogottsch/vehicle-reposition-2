@@ -1,13 +1,18 @@
-PATH_DIR_TRIPS_RAW = (
-    R"D:\Data\Uni\Bachelorseminar\Trips"  # insert Path to unpacked Trips folder
+import os
+
+PATH_DIR_TRIPS_RAW = os.path.join(
+    "/home", "moritz", "data", "Uni", "Bachelorseminar", "Trips"
+)  # insert Path to unpacked Trips folder
+
+PATH_TRIPS = os.path.join("..", "..", "data", "trips.pkl")
+PATH_TRIPS_GROUPED = os.path.join("..", "..", "data", "trips_grouped.pkl")
+PATH_SCENARIOS = os.path.join("..", "..", "data", "scenarios.pkl")
+PATH_SCENARIOS_REDUCED = os.path.join("..", "..", "data", "scenarios_reduced.pkl")
+PATH_SCENARIO_PROBABILITY = os.path.join(
+    "..", "..", "data", "scenarios_probability.pkl"
 )
-PATH_TRIPS = R"..\..\data\trips.pkl"
-PATH_TRIPS_GROUPED = R"..\..\data\trips_grouped.pkl"
-PATH_SCENARIOS = R"..\..\data\scenarios.pkl"
-PATH_SCENARIOS_REDUCED = R"..\..\data\scenarios_reduced.pkl"
-PATH_SCENARIO_PROBABILITY = R"..\..\data\scenarios_probability.pkl"
-PATH_DISTANCES = R"..\..\data\distances.pkl"
-PATH_INITIAL_ALLOCATION = R"..\..\data\initial_allocation.pkl"
+PATH_DISTANCES = os.path.join("..", "..", "data", "distances.pkl")
+PATH_INITIAL_ALLOCATION = os.path.join("..", "..", "data", "initial_allocation.pkl")
 
 H3_RESOLUTION = 6
 PERIOD_DURATION = 4  # in hours
@@ -34,4 +39,4 @@ VEHICLE_ORDERING = ["kick_scooter", "bicycle", "car"]  # short trips -> long tri
 
 # Solver options
 SOLVER = "COIN_CMD"
-PATH_TO_COIN_CMD = R"C:\Program Files\CBC-OR\bin\cbc.exe"
+PATH_TO_COIN_CMD = os.path.join("/usr", "bin", "cbc")

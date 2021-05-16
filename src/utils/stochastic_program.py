@@ -112,7 +112,7 @@ class StochasticProgram(MeasureTimeTrait):
 
     def get_solver(self):
         if SOLVER == "COIN_CMD":
-            return COIN_CMD(path=PATH_TO_COIN_CMD)
+            return COIN_CMD()
 
         raise Exception("Invalid Solver Config")
 
