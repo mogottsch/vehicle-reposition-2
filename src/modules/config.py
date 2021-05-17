@@ -28,12 +28,6 @@ N_REALIZATIONS = 4
 N_SCENARIOS = int(N_REALIZATIONS ** (24 / PERIOD_DURATION - 1))
 N_REDUCED_SCNEARIOS = 8
 
-FLEET_CAPACITY = {
-    "kick_scooter": 200,
-    "bicycle": 100,
-    "car": 50,
-}
-
 VEHICLE_ORDERING = ["kick_scooter", "bicycle", "car"]  # short trips -> long trips
 
 

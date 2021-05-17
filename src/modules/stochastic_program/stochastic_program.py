@@ -17,7 +17,6 @@ from pulp.pulp import LpAffineExpression
 
 from modules.measure_time_trait import MeasureTimeTrait
 from modules.config import (
-    FLEET_CAPACITY,
     SOLVER_PATHS,
     PERIOD_DURATION,
     SOLVER,
@@ -38,6 +37,8 @@ class StochasticProgram(MeasureTimeTrait):
     periods: List[int]
     vehicle_types: List[str]
     n_scenarios: int
+    fleet_capacity: dict
+    max_demand: DefaultDict
 
     M: int
 
@@ -66,6 +67,8 @@ class StochasticProgram(MeasureTimeTrait):
         periods,
         vehicle_types,
         n_scenarios,
+        fleet_capacity,
+        max_demand,
     ) -> None:
         self.demand = demand
         self.costs = costs
@@ -77,10 +80,11 @@ class StochasticProgram(MeasureTimeTrait):
         self.regions = regions
         self.periods = periods
         self.vehicle_types = vehicle_types
-
         self.n_scenarios = n_scenarios
+        self.fleet_capacity = fleet_capacity
+        self.max_demand = max_demand
 
-        self.M = 100_000
+        self.M = 100_000_000
 
         self.relocations_disabled = False
 
@@ -300,7 +304,7 @@ class StochasticProgram(MeasureTimeTrait):
     def create_relocation_binary_constraints(self):
         relocation_binary_constraints = [
             (
-                (self.R[i][i][t][m][s] <= FLEET_CAPACITY[m] * self.Rb[i][t][m][s]),
+                (self.R[i][i][t][m][s] <= self.fleet_capacity[m] * self.Rb[i][t][m][s]),
                 f"force binary variable Rb to represent whether any vehicles are remaining"
                 + f"in region {i} in period {t} with vehicle {m} in scenario {s}",
             )
@@ -314,7 +318,11 @@ class StochasticProgram(MeasureTimeTrait):
     def create_unfulfilled_demand_binary_constraints(self):
         unfulfilled_demand_binary_constraints = [
             (
-                (self.bigU[i][t][m][s] <= self.M * self.bigUb[i][t][m][s]),
+                (
+                    self.bigU[i][t][m][s]
+                    <= self.max_demand[i][t][m][s] * 100 * self.bigUb[i][t][m][s]
+                    # without the x100 the lp takes way longer to solve
+                ),
                 f"force binary variable bigUb to represent whether any demand remains unfilled"
                 + f"in region {i} in period {t} with vehicle {m} in scenario {s}",
             )

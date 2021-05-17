@@ -1,6 +1,8 @@
 from collections import defaultdict
 from typing import DefaultDict, List
 from pandas import DataFrame
+import pandas as pd
+from pandas.core.series import Series
 
 from modules.measure_time_trait import MeasureTimeTrait
 from modules.config import (
@@ -23,18 +25,25 @@ class StochasticProgramFactory(MeasureTimeTrait):
     weighting: DefaultDict
     node_groups: List
 
+    regions: list
+    periods: list
+    vehicle_types: list
+    fleet_capacity: dict
+    max_demand: dict
+
+    parameters_ready: bool
+    initial_allocation_ready: bool
+
     def __init__(
         self,
         scenarios: DataFrame,
         distances: DataFrame,
         probabilities: DataFrame,
-        initial_allocation: DataFrame,
         node_df: DataFrame,
     ) -> None:
         self.scenarios = scenarios
         self.distances = distances
         self.probabilities = probabilities
-        self.initial_allocation = initial_allocation
         self.node_df = node_df
 
         self.demand = defaultdict(
@@ -44,13 +53,47 @@ class StochasticProgramFactory(MeasureTimeTrait):
         self.profits = defaultdict(lambda: defaultdict(dict))
         self.weighting = defaultdict()
 
-    def convert_parameters(self):
-        self.convert_probabilities()
-        self.convert_distances()
-        self.convert_demand()
-        self.convert_nodes()
+        self.regions = list(
+            self.scenarios.index.get_level_values("start_hex_ids").unique()
+        )
+        self.periods = list(
+            map(
+                lambda time: time.hour,
+                self.scenarios.index.get_level_values("time").unique(),
+            )
+        )
+        self.vehicle_types = VEHICLE_ORDERING
+        self.max_demand = defaultdict(lambda: defaultdict(lambda: defaultdict((dict))))
 
-    def convert_distances(self):
+        self.initial_allocation_ready = False
+        self.parameters_ready = False
+
+        self._convert_parameters()
+        self._set_max_demand()
+
+    def _set_max_demand(self):
+        demand_per_region: Series = (
+            self.scenarios.reset_index(
+                ["start_hex_ids", "scenarios", "time", "vehicle_types"]
+            )
+            .groupby(["start_hex_ids", "scenarios", "time", "vehicle_types"])["demand"]
+            .sum()
+        )
+
+        for _, row in demand_per_region.to_frame().reset_index().iterrows():
+            self.max_demand[row.start_hex_ids][row.time.hour][row.vehicle_types][
+                row.scenarios
+            ] = row.demand
+
+    def _convert_parameters(self):
+        self._convert_probabilities()
+        self._convert_distances()
+        self._convert_demand()
+        self._convert_nodes()
+
+        self.parameters_ready = True
+
+    def _convert_distances(self):
         vehicle_types = list(self.scenarios.reset_index()["vehicle_types"].unique())
 
         for _, row in self.distances.reset_index().iterrows():
@@ -62,17 +105,17 @@ class StochasticProgramFactory(MeasureTimeTrait):
                     f"profit_{vehicle_type}"
                 ]
 
-    def convert_demand(self):
+    def _convert_demand(self):
         for _, row in self.scenarios.reset_index().iterrows():
             self.demand[row.start_hex_ids][row.end_hex_ids][row.time.hour][
                 row.vehicle_types
             ][row.scenarios] = row.demand
 
-    def convert_probabilities(self):
+    def _convert_probabilities(self):
         for _, row in self.probabilities.reset_index().iterrows():
             self.weighting[row.scenarios] = row.probability
 
-    def convert_nodes(self):
+    def _convert_nodes(self):
         self.node_groups = []
         for _, group in self.node_df.reset_index().groupby("node"):
             self.node_groups.append(
@@ -82,15 +125,38 @@ class StochasticProgramFactory(MeasureTimeTrait):
                 }
             )
 
-    def create_stochastic_program(self) -> StochasticProgram:
-        regions = list(self.scenarios.index.get_level_values("start_hex_ids").unique())
-        periods = list(
-            map(
-                lambda time: time.hour,
-                self.scenarios.index.get_level_values("time").unique(),
+    def set_initial_allocation(
+        self,
+        fleet_capacity: dict,
+    ):
+        self.fleet_capacity = fleet_capacity
+
+        n_regions = len(self.regions)
+
+        initial_allocation = pd.DataFrame(index=pd.Index(self.regions, name="hex_ids"))
+        for vehicle_type in self.vehicle_types:
+            allocation_per_hex = int(fleet_capacity[vehicle_type] / n_regions)
+            rest = fleet_capacity[vehicle_type] % n_regions
+
+            initial_allocation[vehicle_type] = [allocation_per_hex] * n_regions
+
+            increment_rest_selector = (initial_allocation.index[:rest], vehicle_type)
+
+            initial_allocation.loc[increment_rest_selector] = (
+                initial_allocation.loc[increment_rest_selector] + 1
             )
-        )
-        vehicle_types = VEHICLE_ORDERING
+
+        self.initial_allocation = initial_allocation
+        self.initial_allocation_ready = True
+
+    def create_stochastic_program(self) -> StochasticProgram:
+        if not self.parameters_ready:
+            raise Exception("Parameters not set. Run convert_parameters() first.")
+
+        if not self.parameters_ready:
+            raise Exception(
+                "Initial allocation not set. Run set_initial_allocation() first."
+            )
 
         return StochasticProgram(
             self.demand,
@@ -99,8 +165,10 @@ class StochasticProgramFactory(MeasureTimeTrait):
             self.weighting,
             self.initial_allocation.to_dict(orient="index"),
             self.node_groups,
-            regions,
-            periods,
-            vehicle_types,
+            self.regions,
+            self.periods,
+            self.vehicle_types,
             n_scenarios=N_REDUCED_SCNEARIOS,
+            fleet_capacity=self.fleet_capacity,
+            max_demand=self.max_demand,
         )
