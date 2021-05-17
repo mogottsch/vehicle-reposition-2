@@ -1,7 +1,6 @@
 import pandas as pd
 from collections import defaultdict
 from operator import itemgetter
-from sys import path
 from typing import Any, Callable, DefaultDict, List
 from timeit import default_timer as timer
 from pulp import (
@@ -13,6 +12,7 @@ from pulp import (
     LpInteger,
     lpSum,
     value,
+    listSolvers,
 )
 from pandas import DataFrame
 from pulp.apis.coin_api import COIN_CMD
@@ -21,7 +21,7 @@ from pulp.pulp import LpAffineExpression
 from utils.config import (
     FLEET_CAPACITY,
     N_REDUCED_SCNEARIOS,
-    PATH_TO_COIN_CMD,
+    SOLVER_PATHS,
     PERIOD_DURATION,
     SOLVER,
     VEHICLE_ORDERING,
@@ -109,10 +109,21 @@ class StochasticProgram(MeasureTimeTrait):
         self.relocations_disabled = False
 
     def get_solver(self, **kwargs):
-        if SOLVER == "COIN_CMD":
-            return COIN_CMD(**kwargs)
+        if SOLVER not in listSolvers():
+            raise Exception(
+                f"{SOLVER} is not supported by PuLP."
+                + f" Select one of the following:\n {listSolvers()}"
+            )
 
-        raise Exception("Invalid Solver Config")
+        if SOLVER in listSolvers(onlyAvailable=True):
+            return COIN_CMD(**kwargs)
+        if SOLVER in SOLVER_PATHS:
+            return COIN_CMD(path=SOLVER_PATHS[SOLVER])
+        raise Exception(
+            f"{SOLVER} is not available. "
+            + "Please install and enter correct path in config or use other solver.\n"
+            + f"Available solvers are: {listSolvers(onlyAvailable=True)}"
+        )
 
     def solve(self, **kwargs):
         self.model.solve(solver=self.get_solver(**kwargs))

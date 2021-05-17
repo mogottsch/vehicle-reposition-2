@@ -39,4 +39,6 @@ VEHICLE_ORDERING = ["kick_scooter", "bicycle", "car"]  # short trips -> long tri
 
 # Solver options
 SOLVER = "COIN_CMD"
-PATH_TO_COIN_CMD = os.path.join("/usr", "bin", "cbc")
+SOLVER_PATHS = {"COIN_CMD": os.path.join("/usr", "bin", "cbc")}
+# Solver links
+# COIN_CMD: https://github.com/coin-or/Cbc
