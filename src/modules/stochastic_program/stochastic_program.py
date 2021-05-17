@@ -1,8 +1,6 @@
 import pandas as pd
-from collections import defaultdict
 from operator import itemgetter
-from typing import Any, Callable, DefaultDict, List
-from timeit import default_timer as timer
+from typing import DefaultDict, List
 from pulp import (
     LpMaximize,
     LpProblem,
@@ -14,38 +12,16 @@ from pulp import (
     value,
     listSolvers,
 )
-from pandas import DataFrame
 from pulp.apis.coin_api import COIN_CMD
 from pulp.pulp import LpAffineExpression
 
-from utils.config import (
+from modules.measure_time_trait import MeasureTimeTrait
+from modules.config import (
     FLEET_CAPACITY,
-    N_REDUCED_SCNEARIOS,
     SOLVER_PATHS,
     PERIOD_DURATION,
     SOLVER,
-    VEHICLE_ORDERING,
 )
-
-
-class MeasureTimeTrait(object):
-    exclude_methods: List = []
-
-    def __getattribute__(self, name: str) -> Any:
-        attribute = object.__getattribute__(self, name)
-        if callable(attribute) and name not in self.exclude_methods:
-            return object.__getattribute__(self, "measure_time")(attribute)
-        return attribute
-
-    def measure_time(self, cb: Callable) -> Callable:
-        def decorated_callable(*args, **kwargs):
-            start = timer()
-            value = cb(*args, **kwargs)
-            end = timer()
-            print(f"{cb.__name__} finished in {end-start:.2f} seconds")
-            return value
-
-        return decorated_callable
 
 
 class StochasticProgram(MeasureTimeTrait):
@@ -76,7 +52,7 @@ class StochasticProgram(MeasureTimeTrait):
     # options
     relocations_disabled: bool
 
-    exclude_methods = ["get_lower_vehicles", "get_R"]
+    exclude_methods = ["get_lower_vehicles", "get_R", "get_solver"]
 
     def __init__(
         self,
@@ -468,99 +444,3 @@ class StochasticProgram(MeasureTimeTrait):
                 ]
 
             self.constraints["non_anticipativity"] = non_anticipativity_constraints
-
-
-class StochasticProgramFactory(MeasureTimeTrait):
-    scenarios: DataFrame
-    distances: DataFrame
-    probabilities: DataFrame
-    initial_allocation: DataFrame
-    node_df: DataFrame
-
-    demand: DefaultDict
-    costs: DefaultDict
-    profits: DefaultDict
-    weighting: DefaultDict
-    node_groups: List
-
-    def __init__(
-        self,
-        scenarios: DataFrame,
-        distances: DataFrame,
-        probabilities: DataFrame,
-        initial_allocation: DataFrame,
-        node_df: DataFrame,
-    ) -> None:
-        self.scenarios = scenarios
-        self.distances = distances
-        self.probabilities = probabilities
-        self.initial_allocation = initial_allocation
-        self.node_df = node_df
-
-        self.demand = defaultdict(
-            lambda: defaultdict(lambda: defaultdict(lambda: defaultdict(dict)))
-        )
-        self.costs = defaultdict(lambda: defaultdict(dict))
-        self.profits = defaultdict(lambda: defaultdict(dict))
-        self.weighting = defaultdict()
-
-    def convert_parameters(self):
-        self.convert_probabilities()
-        self.convert_distances()
-        self.convert_demand()
-        self.convert_nodes()
-
-    def convert_distances(self):
-        vehicle_types = list(self.scenarios.reset_index()["vehicle_types"].unique())
-
-        for _, row in self.distances.reset_index().iterrows():
-            for vehicle_type in vehicle_types:
-                self.costs[row.start_hex_id][row.end_hex_id][vehicle_type] = row[
-                    f"cost_{vehicle_type}"
-                ]
-                self.profits[row.start_hex_id][row.end_hex_id][vehicle_type] = row[
-                    f"profit_{vehicle_type}"
-                ]
-
-    def convert_demand(self):
-        for _, row in self.scenarios.reset_index().iterrows():
-            self.demand[row.start_hex_ids][row.end_hex_ids][row.time.hour][
-                row.vehicle_types
-            ][row.scenarios] = row.demand
-
-    def convert_probabilities(self):
-        for _, row in self.probabilities.reset_index().iterrows():
-            self.weighting[row.scenarios] = row.probability
-
-    def convert_nodes(self):
-        self.node_groups = []
-        for _, group in self.node_df.reset_index().groupby("node"):
-            self.node_groups.append(
-                {
-                    "scenarios": list(group.scenarios),
-                    "time": list(group.time)[0].hour,
-                }
-            )
-
-    def create_stochastic_program(self) -> StochasticProgram:
-        regions = list(self.scenarios.index.get_level_values("start_hex_ids").unique())
-        periods = list(
-            map(
-                lambda time: time.hour,
-                self.scenarios.index.get_level_values("time").unique(),
-            )
-        )
-        vehicle_types = VEHICLE_ORDERING
-
-        return StochasticProgram(
-            self.demand,
-            self.costs,
-            self.profits,
-            self.weighting,
-            self.initial_allocation.to_dict(orient="index"),
-            self.node_groups,
-            regions,
-            periods,
-            vehicle_types,
-            n_scenarios=N_REDUCED_SCNEARIOS,
-        )
