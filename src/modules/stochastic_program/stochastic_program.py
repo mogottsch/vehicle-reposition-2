@@ -155,6 +155,22 @@ class StochasticProgram(MeasureTimeTrait):
         )
         return results
 
+    def get_summary(self):
+        tuple_df = self.get_results_by_tuple_df().reset_index()
+        return {
+            "status": LpStatus[self.model.status],
+            "objective": value(self.model.objective),
+            "solver_runtime": self.model.solutionTime,
+            "n_trips": tuple_df["trips"].sum(),
+            "n_unfilled_demand": tuple_df["unfulfilled_demand"].sum(),
+            "n_parking": tuple_df[tuple_df["start_hex_ids"] == tuple_df["end_hex_ids"]][
+                "relocations/parking"
+            ].sum(),
+            "n_relocations": tuple_df[
+                tuple_df["start_hex_ids"] != tuple_df["end_hex_ids"]
+            ]["relocations/parking"].sum(),
+        }
+
     def create_model(self):
         self.model = LpProblem(name="vehicle-reposition", sense=LpMaximize)
 
