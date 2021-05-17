@@ -53,7 +53,13 @@ class StochasticProgram(MeasureTimeTrait):
     # options
     relocations_disabled: bool
 
-    exclude_methods = ["get_lower_vehicles", "get_R", "get_solver"]
+    exclude_methods = [
+        "get_lower_vehicles",
+        "get_R",
+        "get_solver",
+        "get_U",
+        "get_previous_vehicle_type",
+    ]
 
     def __init__(
         self,
@@ -240,10 +246,21 @@ class StochasticProgram(MeasureTimeTrait):
     def get_lower_vehicles(self, vehicle_type):
         return self.vehicle_types[: self.vehicle_types.index(vehicle_type)]
 
+    def get_previous_vehicle_type(self, vehicle_type):
+        prev_index = self.vehicle_types.index(vehicle_type) - 1
+        if prev_index == -1:
+            return None
+        return self.vehicle_types[prev_index]
+
     def get_R(self, i, j, t, m, s):
         if not self.relocations_disabled or i == j:
             return self.R[i][j][t][m][s]
         return 0
+
+    def get_U(self, i, j, t, m, s):
+        if m is None:
+            return None
+        return self.U[i][j][t][m][s]
 
     def create_objective_function(self):
         self.objective_function = lpSum(
@@ -264,8 +281,8 @@ class StochasticProgram(MeasureTimeTrait):
     def create_constraints(self):
         self.constraints = {}
         self.create_demand_constraints()
-        self.create_big_u_sum_constraints()
         self.create_relocation_binary_constraints()
+        self.create_big_u_sum_constraints()
         self.create_unfulfilled_demand_binary_constraints()
         self.create_no_refused_demand_constraints()
         self.create_max_trips_constraints()
@@ -280,9 +297,16 @@ class StochasticProgram(MeasureTimeTrait):
                     self.Y[i][j][t][m][s]
                     == self.demand[i][j][t][m][s]
                     - self.U[i][j][t][m][s]
-                    + lpSum(
-                        [self.U[i][j][t][m_][s] for m_ in self.get_lower_vehicles(m)]
+                    + self.get_U(
+                        i,
+                        j,
+                        t,
+                        self.get_previous_vehicle_type(m),
+                        s,
                     )
+                    # + lpSum(
+                    #     [self.U[i][j][t][m_][s] for m_ in self.get_lower_vehicles(m)]
+                    # )
                 ),
                 f"number of trips with {m} from {i} to {j} in period {t} in scenario {s} matches"
                 + "demand and unfulfilled demand",
@@ -301,11 +325,12 @@ class StochasticProgram(MeasureTimeTrait):
             (
                 (
                     self.bigU[i][t][m][s]
-                    == lpSum(
-                        [self.U[i][j][t][m_][s]]
-                        for j in self.regions
-                        for m_ in self.get_lower_vehicles(m) + [m]
-                    )
+                    == lpSum([self.U[i][j][t][m][s]] for j in self.regions)
+                    # lpSum(
+                    #     [self.U[i][j][t][m_][s]]
+                    #     for j in self.regions
+                    #     for m_ in self.get_lower_vehicles(m) + [m]
+                    # )
                 ),
                 f"accumulated unfulfilled trips in region {i} in period {t} with vehicle {m}"
                 + f" in scenario {s} is equal to total unfulfilled trips in that region",
@@ -336,8 +361,14 @@ class StochasticProgram(MeasureTimeTrait):
             (
                 (
                     self.bigU[i][t][m][s]
-                    <= self.max_demand[i][t][m][s] * 100 * self.bigUb[i][t][m][s]
-                    # without the x100 the lp takes way longer to solve
+                    <= sum(
+                        [
+                            self.max_demand[i][t][m_][s]
+                            for m_ in self.get_lower_vehicles(m) + [m]
+                        ]
+                    )
+                    # * 100
+                    * self.bigUb[i][t][m][s]
                 ),
                 f"force binary variable bigUb to represent whether any demand remains unfilled"
                 + f"in region {i} in period {t} with vehicle {m} in scenario {s}",
