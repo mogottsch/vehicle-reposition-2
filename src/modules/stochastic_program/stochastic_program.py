@@ -1,3 +1,4 @@
+import datetime
 import pandas as pd
 from operator import itemgetter
 from typing import DefaultDict, List
@@ -52,6 +53,7 @@ class StochasticProgram(MeasureTimeTrait):
 
     # options
     relocations_disabled: bool
+    non_anticipativity_disabled: bool
 
     exclude_methods = [
         "get_lower_vehicles",
@@ -93,6 +95,7 @@ class StochasticProgram(MeasureTimeTrait):
         self.M = 100_000_000
 
         self.relocations_disabled = False
+        self.non_anticipativity_disabled = False
 
     def get_solver(self, **kwargs):
         if SOLVER not in listSolvers():
@@ -135,7 +138,7 @@ class StochasticProgram(MeasureTimeTrait):
         )
 
         results.index = results.index.set_names(
-            ["start_hex_ids", "end_hex_ids", "time", "vehicle_types", "scenario"]
+            ["start_hex_ids", "end_hex_ids", "time", "vehicle_types", "scenarios"]
         )
         return results
 
@@ -176,6 +179,23 @@ class StochasticProgram(MeasureTimeTrait):
                 tuple_df["start_hex_ids"] != tuple_df["end_hex_ids"]
             ]["relocations/parking"].sum(),
         }
+
+    def get_unfulfilled_demand(self):
+        unfulfilled_demand = (
+            self.get_results_by_tuple_df()["unfulfilled_demand"]
+            .to_frame()
+            .reset_index()
+        )
+
+        unfulfilled_demand["time"] = unfulfilled_demand["time"].map(
+            lambda hour: datetime.time(hour=hour)
+        )
+        unfulfilled_demand = unfulfilled_demand.set_index(
+            ["start_hex_ids", "end_hex_ids", "time", "vehicle_types", "scenarios"]
+        ).reorder_levels(
+            ["scenarios", "start_hex_ids", "end_hex_ids", "time", "vehicle_types"]
+        )
+        return unfulfilled_demand
 
     def create_model(self):
         self.model = LpProblem(name="vehicle-reposition", sense=LpMaximize)
@@ -288,7 +308,9 @@ class StochasticProgram(MeasureTimeTrait):
         self.create_max_trips_constraints()
         self.create_vehicle_movement_constraints()
         self.create_initial_allocation_constraints()
-        self.create_non_anticipativity_constraints()
+
+        if not self.non_anticipativity_disabled:
+            self.create_non_anticipativity_constraints()
 
     def create_demand_constraints(self):
         demand_constraints = [

@@ -8,6 +8,7 @@ from modules.measure_time_trait import MeasureTimeTrait
 from modules.config import (
     N_REDUCED_SCNEARIOS,
     VEHICLE_ORDERING,
+    PERIOD_DURATION,
 )
 from modules.stochastic_program.stochastic_program import StochasticProgram
 
@@ -56,12 +57,16 @@ class StochasticProgramFactory(MeasureTimeTrait):
         self.regions = list(
             self.scenarios.index.get_level_values("start_hex_ids").unique()
         )
-        self.periods = list(
+
+        periods = list(
             map(
                 lambda time: time.hour,
                 self.scenarios.index.get_level_values("time").unique(),
             )
         )
+        # add additional period for last vehicle state
+        self.periods = periods + [periods[-1] + PERIOD_DURATION]
+
         self.vehicle_types = VEHICLE_ORDERING
         self.max_demand = defaultdict(lambda: defaultdict(lambda: defaultdict((dict))))
 

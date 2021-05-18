@@ -13,6 +13,7 @@ PATH_SCENARIO_PROBABILITY = os.path.join(
 )
 PATH_DISTANCES = os.path.join("..", "..", "data", "distances.pkl")
 PATH_INITIAL_ALLOCATION = os.path.join("..", "..", "data", "initial_allocation.pkl")
+PATH_RESULTS_SUMMARY = os.path.join("..", "..", "data", "results_summary.pkl")
 
 H3_RESOLUTION = 6
 PERIOD_DURATION = 4  # in hours
