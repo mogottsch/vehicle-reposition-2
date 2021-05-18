@@ -175,7 +175,7 @@ class StochasticProgramFactory(MeasureTimeTrait):
             self.regions,
             self.periods,
             self.vehicle_types,
-            n_scenarios=N_REDUCED_SCNEARIOS,
+            n_scenarios=self.scenarios.index.get_level_values("scenarios").nunique(),
             fleet_capacity=self.fleet_capacity,
             max_demand=self.max_demand,
         )
