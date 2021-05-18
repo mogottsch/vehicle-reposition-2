@@ -29,7 +29,7 @@ N_REALIZATIONS = 4
 N_SCENARIOS = int(N_REALIZATIONS ** (24 / PERIOD_DURATION - 1))
 N_REDUCED_SCNEARIOS = 8
 
-VEHICLE_ORDERING = ["kick_scooter", "bicycle", "car"]  # short trips -> long trips
+ALL_VEHICLE_TYPES = ["kick_scooter", "bicycle", "car"]  # short trips -> long trips
 
 
 # Solver options

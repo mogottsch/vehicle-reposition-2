@@ -7,7 +7,7 @@ from pandas.core.series import Series
 from modules.measure_time_trait import MeasureTimeTrait
 from modules.config import (
     N_REDUCED_SCNEARIOS,
-    VEHICLE_ORDERING,
+    ALL_VEHICLE_TYPES,
     PERIOD_DURATION,
 )
 from modules.stochastic_program.stochastic_program import StochasticProgram
@@ -41,6 +41,8 @@ class StochasticProgramFactory(MeasureTimeTrait):
         distances: DataFrame,
         probabilities: DataFrame,
         node_df: DataFrame,
+        vehicle_types: list = ALL_VEHICLE_TYPES,
+        include_methods: list = [],
     ) -> None:
         self.scenarios = scenarios
         self.distances = distances
@@ -67,8 +69,10 @@ class StochasticProgramFactory(MeasureTimeTrait):
         # add additional period for last vehicle state
         self.periods = periods + [periods[-1] + PERIOD_DURATION]
 
-        self.vehicle_types = VEHICLE_ORDERING
+        self.vehicle_types = vehicle_types
         self.max_demand = defaultdict(lambda: defaultdict(lambda: defaultdict((dict))))
+
+        self.include_methods = include_methods
 
         self.initial_allocation_ready = False
         self.parameters_ready = False
@@ -99,10 +103,8 @@ class StochasticProgramFactory(MeasureTimeTrait):
         self.parameters_ready = True
 
     def _convert_distances(self):
-        vehicle_types = list(self.scenarios.reset_index()["vehicle_types"].unique())
-
         for _, row in self.distances.reset_index().iterrows():
-            for vehicle_type in vehicle_types:
+            for vehicle_type in self.vehicle_types:
                 self.costs[row.start_hex_id][row.end_hex_id][vehicle_type] = row[
                     f"cost_{vehicle_type}"
                 ]
