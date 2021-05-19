@@ -313,7 +313,7 @@ class StochasticProgram(MeasureTimeTrait):
             (
                 (
                     self.Y[i][j][t][m][s]
-                    == self._demand[i][j][t][m][s]
+                    == self._demand[(i, j, t, m, s)]
                     - self.U[i][j][t][m][s]
                     + self._get_U(
                         i,

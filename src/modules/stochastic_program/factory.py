@@ -19,7 +19,7 @@ class StochasticProgramFactory(MeasureTimeTrait):
     initial_allocation: DataFrame
     node_df: DataFrame
 
-    demand: dict
+    _demand: dict
     costs: dict
     profits: dict
     weighting: dict
@@ -48,9 +48,7 @@ class StochasticProgramFactory(MeasureTimeTrait):
         self.probabilities = probabilities
         self.node_df = node_df
 
-        self.demand = defaultdict(
-            lambda: defaultdict(lambda: defaultdict(lambda: defaultdict(dict)))
-        )
+        self._demand = {}
 
         self.costs = defaultdict(lambda: defaultdict(dict))
         self.profits = defaultdict(lambda: defaultdict(dict))
@@ -114,10 +112,11 @@ class StochasticProgramFactory(MeasureTimeTrait):
                 ]
 
     def _convert_demand(self):
-        for _, row in self.scenarios.reset_index().iterrows():
-            self.demand[row.start_hex_ids][row.end_hex_ids][row.time.hour][
-                row.vehicle_types
-            ][row.scenarios] = row.demand
+        scenarios = self.scenarios.reset_index()
+        scenarios["time"] = scenarios["time"].apply(lambda time: time.hour)
+        self._demand = scenarios.set_index(
+            ["start_hex_ids", "end_hex_ids", "time", "vehicle_types", "scenarios"]
+        ).to_dict(orient="index")
 
     def _convert_probabilities(self):
         for _, row in self.probabilities.reset_index().iterrows():
@@ -167,7 +166,7 @@ class StochasticProgramFactory(MeasureTimeTrait):
             )
 
         return StochasticProgram(
-            self.demand,
+            self._demand,
             self.costs,
             self.profits,
             self.weighting,
