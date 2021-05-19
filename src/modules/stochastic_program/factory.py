@@ -1,5 +1,3 @@
-from collections import defaultdict
-from typing import DefaultDict, List
 from pandas import DataFrame
 import pandas as pd
 from pandas.core.series import Series
@@ -13,22 +11,22 @@ from modules.stochastic_program.stochastic_program import StochasticProgram
 
 
 class StochasticProgramFactory(MeasureTimeTrait):
-    scenarios: DataFrame
-    distances: DataFrame
-    probabilities: DataFrame
-    initial_allocation: DataFrame
-    node_df: DataFrame
+    _scenarios: DataFrame
+    _distances: DataFrame
+    _probabilities: DataFrame
+    _initial_allocation: DataFrame
+    _node_df: DataFrame
 
     _demand: dict
     _costs: dict
     _profits: dict
-    weighting: dict
-    node_groups: List
+    _weighting: dict
+    _node_groups: list
 
-    regions: list
-    periods: list
-    vehicle_types: list
-    fleet_capacity: dict
+    _regions: list
+    _periods: list
+    _vehicle_types: list
+    _fleet_capacity: dict
     _max_demand: dict = {}
 
     parameters_ready: bool
@@ -36,38 +34,38 @@ class StochasticProgramFactory(MeasureTimeTrait):
 
     def __init__(
         self,
-        scenarios: DataFrame,
-        distances: DataFrame,
-        probabilities: DataFrame,
-        node_df: DataFrame,
-        vehicle_types: list = ALL_VEHICLE_TYPES,
+        _scenarios: DataFrame,
+        _distances: DataFrame,
+        _probabilities: DataFrame,
+        _node_df: DataFrame,
+        _vehicle_types: list = ALL_VEHICLE_TYPES,
         include_methods: list = [],
     ) -> None:
-        self.scenarios = scenarios
-        self.distances = distances
-        self.probabilities = probabilities
-        self.node_df = node_df
+        self._scenarios = _scenarios
+        self._distances = _distances
+        self._probabilities = _probabilities
+        self._node_df = _node_df
 
         self._demand = {}
 
         self._costs = {}
         self._profits = {}
-        self.weighting = defaultdict()
+        self._weighting = {}
 
-        self.regions = list(
-            self.scenarios.index.get_level_values("start_hex_ids").unique()
+        self._regions = list(
+            self._scenarios.index.get_level_values("start_hex_ids").unique()
         )
 
-        periods = list(
+        _periods = list(
             map(
                 lambda time: time.hour,
-                self.scenarios.index.get_level_values("time").unique(),
+                self._scenarios.index.get_level_values("time").unique(),
             )
         )
         # add additional period for last vehicle state
-        self.periods = periods + [periods[-1] + PERIOD_DURATION]
+        self._periods = _periods + [_periods[-1] + PERIOD_DURATION]
 
-        self.vehicle_types = vehicle_types
+        self._vehicle_types = _vehicle_types
 
         self.include_methods = include_methods
 
@@ -79,10 +77,12 @@ class StochasticProgramFactory(MeasureTimeTrait):
 
     def _set_max_demand(self):
         demand_per_region: Series = (
-            self.scenarios.reset_index(
-                ["start_hex_ids", "scenarios", "time", "vehicle_types"]
+            self._scenarios.reset_index(
+                ["start_hex_ids", "_scenarios", "time", "_vehicle_types"]
             )
-            .groupby(["start_hex_ids", "time", "vehicle_types", "scenarios"])["demand"]
+            .groupby(["start_hex_ids", "time", "_vehicle_types", "_scenarios"])[
+                "demand"
+            ]
             .sum()
         )
         demand_per_region.index = demand_per_region.index.set_levels(
@@ -102,7 +102,7 @@ class StochasticProgramFactory(MeasureTimeTrait):
         self.parameters_ready = True
 
     def _convert_distances(self):
-        profits = self.distances[
+        profits = self._distances[
             ["profit_kick_scooter", "profit_car", "profit_bicycle"]
         ]
         self._profits = (
@@ -117,7 +117,7 @@ class StochasticProgramFactory(MeasureTimeTrait):
             .to_dict()
         )
 
-        costs = self.distances[["cost_kick_scooter", "cost_car", "cost_bicycle"]]
+        costs = self._distances[["cost_kick_scooter", "cost_car", "cost_bicycle"]]
         self._costs = (
             costs.rename(
                 columns={
@@ -131,48 +131,49 @@ class StochasticProgramFactory(MeasureTimeTrait):
         )
 
     def _convert_demand(self):
-        scenarios = self.scenarios.reset_index()
-        scenarios["time"] = scenarios["time"].apply(lambda time: time.hour)
-        self._demand = scenarios.set_index(
-            ["start_hex_ids", "end_hex_ids", "time", "vehicle_types", "scenarios"]
+        _scenarios = self._scenarios.reset_index()
+        _scenarios["time"] = _scenarios["time"].apply(lambda time: time.hour)
+        self._demand = _scenarios.set_index(
+            ["start_hex_ids", "end_hex_ids", "time", "_vehicle_types", "_scenarios"]
         ).to_dict(orient="index")
 
     def _convert_probabilities(self):
-        for _, row in self.probabilities.reset_index().iterrows():
-            self.weighting[row.scenarios] = row.probability
+        self._weighting = self._probabilities["probability"].to_dict()
 
     def _convert_nodes(self):
-        self.node_groups = []
-        for _, group in self.node_df.reset_index().groupby("node"):
-            self.node_groups.append(
+        self._node_groups = []
+        for _, group in self._node_df.reset_index().groupby("node"):
+            self._node_groups.append(
                 {
-                    "scenarios": list(group.scenarios),
+                    "_scenarios": list(group._scenarios),
                     "time": list(group.time)[0].hour,
                 }
             )
 
     def set_initial_allocation(
         self,
-        fleet_capacity: dict,
+        _fleet_capacity: dict,
     ):
-        self.fleet_capacity = fleet_capacity
+        self._fleet_capacity = _fleet_capacity
 
-        n_regions = len(self.regions)
+        n_regions = len(self._regions)
 
-        initial_allocation = pd.DataFrame(index=pd.Index(self.regions, name="hex_ids"))
-        for vehicle_type in self.vehicle_types:
-            allocation_per_hex = int(fleet_capacity[vehicle_type] / n_regions)
-            rest = fleet_capacity[vehicle_type] % n_regions
+        _initial_allocation = pd.DataFrame(
+            index=pd.Index(self._regions, name="hex_ids")
+        )
+        for vehicle_type in self._vehicle_types:
+            allocation_per_hex = int(_fleet_capacity[vehicle_type] / n_regions)
+            rest = _fleet_capacity[vehicle_type] % n_regions
 
-            initial_allocation[vehicle_type] = [allocation_per_hex] * n_regions
+            _initial_allocation[vehicle_type] = [allocation_per_hex] * n_regions
 
-            increment_rest_selector = (initial_allocation.index[:rest], vehicle_type)
+            increment_rest_selector = (_initial_allocation.index[:rest], vehicle_type)
 
-            initial_allocation.loc[increment_rest_selector] = (
-                initial_allocation.loc[increment_rest_selector] + 1
+            _initial_allocation.loc[increment_rest_selector] = (
+                _initial_allocation.loc[increment_rest_selector] + 1
             )
 
-        self.initial_allocation = initial_allocation
+        self._initial_allocation = _initial_allocation
         self.initial_allocation_ready = True
 
     def create_stochastic_program(self) -> StochasticProgram:
@@ -188,13 +189,13 @@ class StochasticProgramFactory(MeasureTimeTrait):
             self._demand,
             self._costs,
             self._profits,
-            self.weighting,
-            self.initial_allocation.to_dict(orient="index"),
-            self.node_groups,
-            self.regions,
-            self.periods,
-            self.vehicle_types,
-            n_scenarios=self.scenarios.index.get_level_values("scenarios").nunique(),
-            fleet_capacity=self.fleet_capacity,
+            self._weighting,
+            self._initial_allocation.to_dict(orient="index"),
+            self._node_groups,
+            self._regions,
+            self._periods,
+            self._vehicle_types,
+            n_scenarios=self._scenarios.index.get_level_values("_scenarios").nunique(),
+            _fleet_capacity=self._fleet_capacity,
             max_demand=self._max_demand,
         )
