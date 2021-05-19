@@ -20,8 +20,8 @@ class StochasticProgramFactory(MeasureTimeTrait):
     node_df: DataFrame
 
     _demand: dict
-    costs: dict
-    profits: dict
+    _costs: dict
+    _profits: dict
     weighting: dict
     node_groups: List
 
@@ -50,8 +50,8 @@ class StochasticProgramFactory(MeasureTimeTrait):
 
         self._demand = {}
 
-        self.costs = defaultdict(lambda: defaultdict(dict))
-        self.profits = defaultdict(lambda: defaultdict(dict))
+        self._costs = {}
+        self._profits = {}
         self.weighting = defaultdict()
 
         self.regions = list(
@@ -102,14 +102,33 @@ class StochasticProgramFactory(MeasureTimeTrait):
         self.parameters_ready = True
 
     def _convert_distances(self):
-        for _, row in self.distances.reset_index().iterrows():
-            for vehicle_type in self.vehicle_types:
-                self.costs[row.start_hex_id][row.end_hex_id][vehicle_type] = row[
-                    f"cost_{vehicle_type}"
-                ]
-                self.profits[row.start_hex_id][row.end_hex_id][vehicle_type] = row[
-                    f"profit_{vehicle_type}"
-                ]
+        profits = self.distances[
+            ["profit_kick_scooter", "profit_car", "profit_bicycle"]
+        ]
+        self._profits = (
+            profits.rename(
+                columns={
+                    "profit_kick_scooter": "kick_scooter",
+                    "profit_car": "car",
+                    "profit_bicycle": "bicycle",
+                }
+            )
+            .stack()
+            .to_dict()
+        )
+
+        costs = self.distances[["cost_kick_scooter", "cost_car", "cost_bicycle"]]
+        self._costs = (
+            costs.rename(
+                columns={
+                    "cost_kick_scooter": "kick_scooter",
+                    "cost_car": "car",
+                    "cost_bicycle": "bicycle",
+                }
+            )
+            .stack()
+            .to_dict()
+        )
 
     def _convert_demand(self):
         scenarios = self.scenarios.reset_index()
@@ -167,8 +186,8 @@ class StochasticProgramFactory(MeasureTimeTrait):
 
         return StochasticProgram(
             self._demand,
-            self.costs,
-            self.profits,
+            self._costs,
+            self._profits,
             self.weighting,
             self.initial_allocation.to_dict(orient="index"),
             self.node_groups,

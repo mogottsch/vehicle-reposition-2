@@ -283,8 +283,8 @@ class StochasticProgram(MeasureTimeTrait):
             [
                 self._weighting[s]
                 * (
-                    self.Y[i][j][t][m][s] * self._profits[i][j][m]
-                    - self._get_R(i, j, t, m, s) * self._costs[i][j][m]
+                    self.Y[i][j][t][m][s] * self._profits[(i, j, m)]
+                    - self._get_R(i, j, t, m, s) * self._costs[(i, j, m)]
                 )
                 for i in self._regions
                 for j in self._regions
