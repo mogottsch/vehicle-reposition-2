@@ -133,7 +133,7 @@ class StochasticProgramFactory(MeasureTimeTrait):
         _scenarios["time"] = _scenarios["time"].apply(lambda time: time.hour)
         self._demand = _scenarios.set_index(
             ["start_hex_ids", "end_hex_ids", "time", "vehicle_types", "scenarios"]
-        ).to_dict(orient="index")
+        )["demand"].to_dict()
 
     def _convert_probabilities(self):
         self._weighting = self._probabilities["probability"].to_dict()
