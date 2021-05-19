@@ -15,11 +15,17 @@ PATH_DISTANCES = os.path.join("..", "..", "data", "distances.pkl")
 PATH_INITIAL_ALLOCATION = os.path.join("..", "..", "data", "initial_allocation.pkl")
 PATH_RESULTS_SUMMARY = os.path.join("..", "..", "data", "results_summary.pkl")
 
-H3_RESOLUTION = 6
-PERIOD_DURATION = 4  # in hours
+# H3_RESOLUTION = 6
+# PERIOD_DURATION = 4  # in hours
+# MODE_IS_WEEKEND = True
 
+# N_REALIZATIONS = 4
 
-N_REALIZATIONS = 4
+H3_RESOLUTION = 7
+PERIOD_DURATION = 12  # in hours
+MODE_IS_WEEKEND = True
+
+N_REALIZATIONS = 2048
 
 # the number of scenarios is determined by the period duration and the number of different
 # realizations of each random variable
