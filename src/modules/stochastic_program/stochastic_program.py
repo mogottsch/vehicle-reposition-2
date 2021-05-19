@@ -14,7 +14,6 @@ from pulp import (
     listSolvers,
 )
 from pulp.apis import getSolver
-from pulp.apis.coin_api import COIN_CMD
 from pulp.pulp import LpAffineExpression
 
 from modules.measure_time_trait import MeasureTimeTrait
@@ -94,105 +93,9 @@ class StochasticProgram(MeasureTimeTrait):
         self.relocations_disabled = False
         self.non_anticipativity_disabled = False
 
-    def _get_solver(self, **kwargs):
-        if SOLVER not in listSolvers():
-            raise Exception(
-                f"{SOLVER} is not supported by PuLP."
-                + f" Select one of the following:\n {listSolvers()}"
-            )
-
-        if SOLVER in listSolvers(onlyAvailable=True):
-            return getSolver(SOLVER, **kwargs)
-        if SOLVER in SOLVER_PATHS:
-            return getSolver(SOLVER, path=SOLVER_PATHS[SOLVER])
-        raise Exception(
-            f"{SOLVER} is not available. "
-            + "Please install and enter correct path in config or use other solver.\n"
-            + f"Available solvers are: {listSolvers(onlyAvailable=True)}"
-        )
-
-    def solve(self, **kwargs):
-        self.model.solve(solver=self._get_solver(**kwargs))
-        print("Status:", LpStatus[self.model.status])
-        print("Optimal Value of Objective Function: ", value(self.model.objective))
-        print(f"Runtime without preprocessing: {self.model.solutionTime:.2f} seconds")
-
-    def _get_results_by_tuple_df(self):
-        results = pd.DataFrame.from_dict(
-            {
-                (i, j, t, m, s): {
-                    "relocations/parking": int(value(self._get_R(i, j, t, m, s))),
-                    "trips": int(value(self.Y[i][j][t][m][s])),
-                    "unfulfilled_demand": int(value(self.U[i][j][t][m][s])),
-                }
-                for i in self._regions
-                for j in self._regions
-                for t in self._periods[:-1]
-                for m in self._vehicle_types
-                for s in range(self._n_scenarios)
-            },
-            orient="index",
-        )
-
-        results.index = results.index.set_names(
-            ["start_hex_ids", "end_hex_ids", "time", "vehicle_types", "scenarios"]
-        )
-        return results
-
-    def _get_results_by_region_df(self):
-        results = pd.DataFrame.from_dict(
-            {
-                (i, t, m, s): {
-                    "accumulated_unfulfilled_demand": int(value(self.bigU[i][t][m][s])),
-                    "has_unfulfilled_demand": int(value(self.bigUb[i][t][m][s])),
-                    "has_remaining_vehicles": int(value(self.Rb[i][t][m][s])),
-                    "n_vehicles": int(value(self.X[i][t][m][s])),
-                }
-                for i in self._regions
-                for t in self._periods[:-1]
-                for m in self._vehicle_types
-                for s in range(self._n_scenarios)
-            },
-            orient="index",
-        )
-
-        results.index = results.index.set_names(
-            ["hex_ids", "time", "vehicle_types", "scenario"]
-        )
-        return results
-
-    def get_summary(self):
-        tuple_df = self._get_results_by_tuple_df().reset_index()
-        return {
-            "status": LpStatus[self.model.status],
-            "objective": value(self.model.objective),
-            "solver_runtime": self.model.solutionTime,
-            "n_trips": tuple_df["trips"].sum(),
-            "n_unfilled_demand": tuple_df["unfulfilled_demand"].sum(),
-            "n_parking": tuple_df[tuple_df["start_hex_ids"] == tuple_df["end_hex_ids"]][
-                "relocations/parking"
-            ].sum(),
-            "n_relocations": tuple_df[
-                tuple_df["start_hex_ids"] != tuple_df["end_hex_ids"]
-            ]["relocations/parking"].sum(),
-        }
-
-    def _get_unfulfilled_demand(self):
-        unfulfilled_demand = (
-            self._get_results_by_tuple_df()["unfulfilled_demand"]
-            .to_frame()
-            .reset_index()
-        )
-
-        unfulfilled_demand["time"] = unfulfilled_demand["time"].map(
-            lambda hour: datetime.time(hour=hour)
-        )
-        unfulfilled_demand = unfulfilled_demand.set_index(
-            ["start_hex_ids", "end_hex_ids", "time", "vehicle_types", "scenarios"]
-        ).reorder_levels(
-            ["scenarios", "start_hex_ids", "end_hex_ids", "time", "vehicle_types"]
-        )
-        return unfulfilled_demand
+    # ---------------------------------------------------------------------------- #
+    #                               LP Initialization                              #
+    # ---------------------------------------------------------------------------- #
 
     def create_model(self):
         self.model = LpProblem(name="vehicle-reposition", sense=LpMaximize)
@@ -513,3 +416,111 @@ class StochasticProgram(MeasureTimeTrait):
                 ]
 
             self.constraints["non_anticipativity"] = non_anticipativity_constraints
+
+    # ---------------------------------------------------------------------------- #
+    #                                 Solving                                      #
+    # ---------------------------------------------------------------------------- #
+
+    def _get_solver(self, **kwargs):
+        if SOLVER not in listSolvers():
+            raise Exception(
+                f"{SOLVER} is not supported by PuLP."
+                + f" Select one of the following:\n {listSolvers()}"
+            )
+
+        if SOLVER in listSolvers(onlyAvailable=True):
+            return getSolver(SOLVER, **kwargs)
+        if SOLVER in SOLVER_PATHS:
+            return getSolver(SOLVER, path=SOLVER_PATHS[SOLVER])
+        raise Exception(
+            f"{SOLVER} is not available. "
+            + "Please install and enter correct path in config or use other solver.\n"
+            + f"Available solvers are: {listSolvers(onlyAvailable=True)}"
+        )
+
+    def solve(self, **kwargs):
+        self.model.solve(solver=self._get_solver(**kwargs))
+        print("Status:", LpStatus[self.model.status])
+        print("Optimal Value of Objective Function: ", value(self.model.objective))
+        print(f"Runtime without preprocessing: {self.model.solutionTime:.2f} seconds")
+
+    # ---------------------------------------------------------------------------- #
+    #                               Result Evaluation                              #
+    # ---------------------------------------------------------------------------- #
+
+    def get_results_by_tuple_df(self):
+        results = pd.DataFrame.from_dict(
+            {
+                (i, j, t, m, s): {
+                    "relocations/parking": int(value(self._get_R(i, j, t, m, s))),
+                    "trips": int(value(self.Y[i][j][t][m][s])),
+                    "unfulfilled_demand": int(value(self.U[i][j][t][m][s])),
+                }
+                for i in self._regions
+                for j in self._regions
+                for t in self._periods[:-1]
+                for m in self._vehicle_types
+                for s in range(self._n_scenarios)
+            },
+            orient="index",
+        )
+
+        results.index = results.index.set_names(
+            ["start_hex_ids", "end_hex_ids", "time", "vehicle_types", "scenarios"]
+        )
+        return results
+
+    def get_results_by_region_df(self):
+        results = pd.DataFrame.from_dict(
+            {
+                (i, t, m, s): {
+                    "accumulated_unfulfilled_demand": int(value(self.bigU[i][t][m][s])),
+                    "has_unfulfilled_demand": int(value(self.bigUb[i][t][m][s])),
+                    "has_remaining_vehicles": int(value(self.Rb[i][t][m][s])),
+                    "n_vehicles": int(value(self.X[i][t][m][s])),
+                }
+                for i in self._regions
+                for t in self._periods[:-1]
+                for m in self._vehicle_types
+                for s in range(self._n_scenarios)
+            },
+            orient="index",
+        )
+
+        results.index = results.index.set_names(
+            ["hex_ids", "time", "vehicle_types", "scenario"]
+        )
+        return results
+
+    def get_summary(self):
+        tuple_df = self.get_results_by_tuple_df().reset_index()
+        return {
+            "status": LpStatus[self.model.status],
+            "objective": value(self.model.objective),
+            "solver_runtime": self.model.solutionTime,
+            "n_trips": tuple_df["trips"].sum(),
+            "n_unfilled_demand": tuple_df["unfulfilled_demand"].sum(),
+            "n_parking": tuple_df[tuple_df["start_hex_ids"] == tuple_df["end_hex_ids"]][
+                "relocations/parking"
+            ].sum(),
+            "n_relocations": tuple_df[
+                tuple_df["start_hex_ids"] != tuple_df["end_hex_ids"]
+            ]["relocations/parking"].sum(),
+        }
+
+    def _get_unfulfilled_demand(self):
+        unfulfilled_demand = (
+            self.get_results_by_tuple_df()["unfulfilled_demand"]
+            .to_frame()
+            .reset_index()
+        )
+
+        unfulfilled_demand["time"] = unfulfilled_demand["time"].map(
+            lambda hour: datetime.time(hour=hour)
+        )
+        unfulfilled_demand = unfulfilled_demand.set_index(
+            ["start_hex_ids", "end_hex_ids", "time", "vehicle_types", "scenarios"]
+        ).reorder_levels(
+            ["scenarios", "start_hex_ids", "end_hex_ids", "time", "vehicle_types"]
+        )
+        return unfulfilled_demand
