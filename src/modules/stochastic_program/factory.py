@@ -78,11 +78,9 @@ class StochasticProgramFactory(MeasureTimeTrait):
     def _set_max_demand(self):
         demand_per_region: Series = (
             self._scenarios.reset_index(
-                ["start_hex_ids", "_scenarios", "time", "_vehicle_types"]
+                ["start_hex_ids", "scenarios", "time", "vehicle_types"]
             )
-            .groupby(["start_hex_ids", "time", "_vehicle_types", "_scenarios"])[
-                "demand"
-            ]
+            .groupby(["start_hex_ids", "time", "vehicle_types", "scenarios"])["demand"]
             .sum()
         )
         demand_per_region.index = demand_per_region.index.set_levels(
@@ -134,7 +132,7 @@ class StochasticProgramFactory(MeasureTimeTrait):
         _scenarios = self._scenarios.reset_index()
         _scenarios["time"] = _scenarios["time"].apply(lambda time: time.hour)
         self._demand = _scenarios.set_index(
-            ["start_hex_ids", "end_hex_ids", "time", "_vehicle_types", "_scenarios"]
+            ["start_hex_ids", "end_hex_ids", "time", "vehicle_types", "scenarios"]
         ).to_dict(orient="index")
 
     def _convert_probabilities(self):
@@ -145,7 +143,7 @@ class StochasticProgramFactory(MeasureTimeTrait):
         for _, group in self._node_df.reset_index().groupby("node"):
             self._node_groups.append(
                 {
-                    "_scenarios": list(group._scenarios),
+                    "scenarios": list(group.scenarios),
                     "time": list(group.time)[0].hour,
                 }
             )
@@ -195,7 +193,7 @@ class StochasticProgramFactory(MeasureTimeTrait):
             self._regions,
             self._periods,
             self._vehicle_types,
-            n_scenarios=self._scenarios.index.get_level_values("_scenarios").nunique(),
-            _fleet_capacity=self._fleet_capacity,
+            n_scenarios=self._scenarios.index.get_level_values("scenarios").nunique(),
+            fleet_capacity=self._fleet_capacity,
             max_demand=self._max_demand,
         )

@@ -13,6 +13,7 @@ from pulp import (
     value,
     listSolvers,
 )
+from pulp.apis import getSolver
 from pulp.apis.coin_api import COIN_CMD
 from pulp.pulp import LpAffineExpression
 
@@ -101,9 +102,9 @@ class StochasticProgram(MeasureTimeTrait):
             )
 
         if SOLVER in listSolvers(onlyAvailable=True):
-            return COIN_CMD(**kwargs)
+            return getSolver(SOLVER, **kwargs)
         if SOLVER in SOLVER_PATHS:
-            return COIN_CMD(path=SOLVER_PATHS[SOLVER])
+            return getSolver(SOLVER, path=SOLVER_PATHS[SOLVER])
         raise Exception(
             f"{SOLVER} is not available. "
             + "Please install and enter correct path in config or use other solver.\n"
