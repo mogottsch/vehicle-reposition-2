@@ -1,6 +1,7 @@
 .vscode
 /data/
 .ipynb_checkpoints
+/src/notebooks/log
 /src/notebooks/old/
 /src/notebooks/experiments/
 /debug/

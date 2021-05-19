@@ -6,7 +6,6 @@ from pandas.core.series import Series
 
 from modules.measure_time_trait import MeasureTimeTrait
 from modules.config import (
-    N_REDUCED_SCNEARIOS,
     ALL_VEHICLE_TYPES,
     PERIOD_DURATION,
 )
@@ -20,17 +19,17 @@ class StochasticProgramFactory(MeasureTimeTrait):
     initial_allocation: DataFrame
     node_df: DataFrame
 
-    demand: DefaultDict
-    costs: DefaultDict
-    profits: DefaultDict
-    weighting: DefaultDict
+    demand: dict
+    costs: dict
+    profits: dict
+    weighting: dict
     node_groups: List
 
     regions: list
     periods: list
     vehicle_types: list
     fleet_capacity: dict
-    max_demand: dict
+    _max_demand: dict = {}
 
     parameters_ready: bool
     initial_allocation_ready: bool
@@ -52,6 +51,7 @@ class StochasticProgramFactory(MeasureTimeTrait):
         self.demand = defaultdict(
             lambda: defaultdict(lambda: defaultdict(lambda: defaultdict(dict)))
         )
+
         self.costs = defaultdict(lambda: defaultdict(dict))
         self.profits = defaultdict(lambda: defaultdict(dict))
         self.weighting = defaultdict()
@@ -70,7 +70,6 @@ class StochasticProgramFactory(MeasureTimeTrait):
         self.periods = periods + [periods[-1] + PERIOD_DURATION]
 
         self.vehicle_types = vehicle_types
-        self.max_demand = defaultdict(lambda: defaultdict(lambda: defaultdict((dict))))
 
         self.include_methods = include_methods
 
@@ -85,14 +84,16 @@ class StochasticProgramFactory(MeasureTimeTrait):
             self.scenarios.reset_index(
                 ["start_hex_ids", "scenarios", "time", "vehicle_types"]
             )
-            .groupby(["start_hex_ids", "scenarios", "time", "vehicle_types"])["demand"]
+            .groupby(["start_hex_ids", "time", "vehicle_types", "scenarios"])["demand"]
             .sum()
         )
+        demand_per_region.index = demand_per_region.index.set_levels(
+            demand_per_region.index.levels[1].map(lambda time: time.hour),
+            level="time",
+            verify_integrity=False,
+        )
 
-        for _, row in demand_per_region.to_frame().reset_index().iterrows():
-            self.max_demand[row.start_hex_ids][row.time.hour][row.vehicle_types][
-                row.scenarios
-            ] = row.demand
+        self._max_demand = demand_per_region.to_dict()
 
     def _convert_parameters(self):
         self._convert_probabilities()
@@ -177,5 +178,5 @@ class StochasticProgramFactory(MeasureTimeTrait):
             self.vehicle_types,
             n_scenarios=self.scenarios.index.get_level_values("scenarios").nunique(),
             fleet_capacity=self.fleet_capacity,
-            max_demand=self.max_demand,
+            max_demand=self._max_demand,
         )

@@ -376,7 +376,7 @@ class StochasticProgram(MeasureTimeTrait):
                     self.bigU[i][t][m][s]
                     <= sum(
                         [
-                            self._max_demand[i][t][m_][s]
+                            self._max_demand[(i, t, m_, s)]
                             for m_ in self._get_lower_vehicles(m) + [m]
                         ]
                     )
