@@ -21,4 +21,4 @@ Before running any notebook make sure to set the `PATH_DIR_TRIPS_RAW` configurat
 
 ## Configuration
 
-The `modules/config.py` file allows to configure some the models hyperparameters as well as the solver that is used to solve the linear program.
+The `modules/config.py` file allows to configure some of the models hyperparameters as well as the solver that is used to solve the linear program.
