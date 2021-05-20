@@ -147,6 +147,13 @@ class StochasticProgram(MeasureTimeTrait):
         self.X = LpVariable.dicts(
             "x", itmsFull, lowBound=0, upBound=None, cat=LpInteger
         )
+        self.X_ = LpVariable.dicts(
+            "x'", itmsFull, lowBound=0, upBound=None, cat=LpInteger
+        )
+
+        self.V = LpVariable.dicts(
+            "v", itmsFull, lowBound=0, upBound=None, cat=LpInteger
+        )
 
         # binary variable - no vehicles remain in region
         self.Rb = LpVariable.dicts("rb", itms, lowBound=0, upBound=1, cat=LpInteger)
@@ -205,8 +212,9 @@ class StochasticProgram(MeasureTimeTrait):
         self._create_big_u_sum_constraints()
         self._create_unfulfilled_demand_binary_constraints()
         self._create_no_refused_demand_constraints()
-        self._create_max_trips_constraints()
-        self._create_vehicle_movement_constraints()
+        self._create_max_relocations_constraints()
+        self._create_vehicle_starting_constraints()
+        self._create_vehicle_ending_constraints()
         self._create_initial_allocation_constraints()
 
         if not self.non_anticipativity_disabled:
@@ -313,19 +321,21 @@ class StochasticProgram(MeasureTimeTrait):
         ]
         self._constraints["no_refused_demand"] = no_refused_demand_constraints
 
-    def _create_max_trips_constraints(self):
-        max_trips_constraints = [
+    def _create_max_relocations_constraints(self):
+        max_relocations_constraints = [
             (
                 (
-                    lpSum(
+                    self.X[i][t][m][s]
+                    + lpSum(
                         [
-                            self.Y[i][j][t][m][s] + self._get_R(i, j, t, m, s)
+                            self._get_R(j, i, t, m, s) - self._get_R(i, j, t, m, s)
                             for j in self._regions
+                            if j != i
                         ]
                     )
-                    == self.X[i][t][m][s]
+                    == self.X_[i][t + PERIOD_DURATION][m][s]
                 ),
-                f"maximum trips from {i} in period {t} with vehicle {m} in scenario {s}",
+                f"[TODO] maximum trips from {i} in period {t} with vehicle {m} in scenario {s}",
             )
             for i in self._regions
             for t in self._periods[:-1]
@@ -333,26 +343,15 @@ class StochasticProgram(MeasureTimeTrait):
             for s in range(self._n_scenarios)
         ]
 
-        self._constraints["max_trips_constraints"] = max_trips_constraints
+        self._constraints["max_relocations_constraints"] = max_relocations_constraints
 
-    def _create_vehicle_movement_constraints(self):
-        vehicle_movement_constraints = [
+    def _create_vehicle_starting_constraints(self):
+        vehicle_starting_constraints = [
             (
-                self.X[i][t + PERIOD_DURATION][m][s]
-                == lpSum(
-                    [
-                        self.Y[j][i][t][m][s]
-                        + self._get_R(
-                            j,
-                            i,
-                            t,
-                            m,
-                            s,
-                        )
-                        for j in self._regions
-                    ]
-                ),
-                f"number of {m} in {i} in period {t+1} in scenario {s}"
+                self.X_[i][t][m][s]
+                == self.V[i][t][m][s]
+                + lpSum([self.Y[i][j][t][m][s] for j in self._regions]),
+                f"[TODO] number of {m} in {i} in period {t+1} in scenario {s}"
                 + " matches trips, relocations and parking vehicles from previous period",
             )
             for i in self._regions
@@ -360,7 +359,23 @@ class StochasticProgram(MeasureTimeTrait):
             for m in self._vehicle_types
             for s in range(self._n_scenarios)
         ]
-        self._constraints["vehicle_movement_constraints"] = vehicle_movement_constraints
+        self._constraints["vehicle_starting_constraints"] = vehicle_starting_constraints
+
+    def _create_vehicle_ending_constraints(self):
+        vehicle_ending_constraints = [
+            (
+                self.X[i][t][m][s]
+                == self.V[i][t][m][s]
+                + lpSum([self.Y[j][i][t][m][s] for j in self._regions]),
+                f"[TODOOO] number of {m} in {i} in period {t+1} in scenario {s}"
+                + " matches trips, relocations and parking vehicles from previous period",
+            )
+            for i in self._regions
+            for t in self._periods[:-1]
+            for m in self._vehicle_types
+            for s in range(self._n_scenarios)
+        ]
+        self._constraints["vehicle_ending_constraints"] = vehicle_ending_constraints
 
     def _create_initial_allocation_constraints(self):
         initial_allocation_constraints = [
