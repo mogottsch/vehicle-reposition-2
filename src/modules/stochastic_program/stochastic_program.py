@@ -212,9 +212,9 @@ class StochasticProgram(MeasureTimeTrait):
         self._create_big_u_sum_constraints()
         self._create_unfulfilled_demand_binary_constraints()
         self._create_no_refused_demand_constraints()
-        self._create_max_relocations_constraints()
-        self._create_vehicle_starting_constraints()
-        self._create_vehicle_ending_constraints()
+        self._create_relocations_constraints()
+        self._create_vehicle_trips_starting_constraints()
+        self._create_vehicle_trips_ending_constraints()
         self._create_initial_allocation_constraints()
 
         if not self.non_anticipativity_disabled:
@@ -321,8 +321,8 @@ class StochasticProgram(MeasureTimeTrait):
         ]
         self._constraints["no_refused_demand"] = no_refused_demand_constraints
 
-    def _create_max_relocations_constraints(self):
-        max_relocations_constraints = [
+    def _create_relocations_constraints(self):
+        relocations_constraints = [
             (
                 (
                     self.X[i][t][m][s]
@@ -335,7 +335,9 @@ class StochasticProgram(MeasureTimeTrait):
                     )
                     == self.X_[i][t + PERIOD_DURATION][m][s]
                 ),
-                f"[TODO] maximum trips from {i} in period {t} with vehicle {m} in scenario {s}",
+                f"Number of {m} after realized trips in region {i} (period {t}, scenario {s})"
+                + f" is equal to the number of vehicles before realized trips of the next period {t +PERIOD_DURATION}"
+                + " minus vehicles relocated away plus vehicle relocated into",
             )
             for i in self._regions
             for t in self._periods[:-1]
@@ -343,39 +345,43 @@ class StochasticProgram(MeasureTimeTrait):
             for s in range(self._n_scenarios)
         ]
 
-        self._constraints["max_relocations_constraints"] = max_relocations_constraints
+        self._constraints["relocations_constraints"] = relocations_constraints
 
-    def _create_vehicle_starting_constraints(self):
-        vehicle_starting_constraints = [
+    def _create_vehicle_trips_starting_constraints(self):
+        vehicle_trips_starting_constraints = [
             (
                 self.X_[i][t][m][s]
                 == self.V[i][t][m][s]
                 + lpSum([self.Y[i][j][t][m][s] for j in self._regions]),
-                f"[TODO] number of {m} in {i} in period {t+1} in scenario {s}"
-                + " matches trips, relocations and parking vehicles from previous period",
+                f"number of {m} in region {i} before demand realization (period {t}, scenario {s})"
+                + " is equal to the number of outgoing trips plus the number of idle vehicles",
             )
             for i in self._regions
             for t in self._periods[:-1]
             for m in self._vehicle_types
             for s in range(self._n_scenarios)
         ]
-        self._constraints["vehicle_starting_constraints"] = vehicle_starting_constraints
+        self._constraints[
+            "vehicle_trips_starting_constraints"
+        ] = vehicle_trips_starting_constraints
 
-    def _create_vehicle_ending_constraints(self):
-        vehicle_ending_constraints = [
+    def _create_vehicle_trips_ending_constraints(self):
+        vehicle_trips_ending_constraints = [
             (
                 self.X[i][t][m][s]
                 == self.V[i][t][m][s]
                 + lpSum([self.Y[j][i][t][m][s] for j in self._regions]),
-                f"[TODOOO] number of {m} in {i} in period {t+1} in scenario {s}"
-                + " matches trips, relocations and parking vehicles from previous period",
+                f"number of {m} in region {i} (period {t+1}, scenario {s}) after demand realization"
+                + "is equal to the number of idle vehicles plus the number of incoming trips",
             )
             for i in self._regions
             for t in self._periods[:-1]
             for m in self._vehicle_types
             for s in range(self._n_scenarios)
         ]
-        self._constraints["vehicle_ending_constraints"] = vehicle_ending_constraints
+        self._constraints[
+            "vehicle_trips_ending_constraints"
+        ] = vehicle_trips_ending_constraints
 
     def _create_initial_allocation_constraints(self):
         initial_allocation_constraints = [
