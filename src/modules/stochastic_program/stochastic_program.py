@@ -52,6 +52,7 @@ class StochasticProgram(MeasureTimeTrait):
     # options
     relocations_disabled: bool
     non_anticipativity_disabled: bool
+    _relocation_periods: list
 
     exclude_methods = [
         "_get_lower_vehicles",
@@ -75,6 +76,7 @@ class StochasticProgram(MeasureTimeTrait):
         n_scenarios,
         fleet_capacity,
         max_demand,
+        relocation_periods,
     ) -> None:
         self._demand = demand
         self._costs = costs
@@ -92,15 +94,17 @@ class StochasticProgram(MeasureTimeTrait):
 
         self.relocations_disabled = False
         self.non_anticipativity_disabled = False
+        self._relocation_periods = relocation_periods
 
     # ---------------------------------------------------------------------------- #
     #                               LP Initialization                              #
     # ---------------------------------------------------------------------------- #
 
-    def create_model(self):
+    def create_model(self, warmStart=False):
         self.model = LpProblem(name="vehicle-reposition", sense=LpMaximize)
 
-        self._create_variables()
+        if not warmStart:
+            self._create_variables()
 
         self._create_objective_function()
         self.model += self.objective_function
@@ -133,14 +137,16 @@ class StochasticProgram(MeasureTimeTrait):
         self.Y = LpVariable.dicts("y", ijtms, lowBound=0, upBound=None, cat=LpInteger)
 
         # relocations
-        if self.relocations_disabled:
-            self.R = LpVariable.dicts(
-                "r", itms, lowBound=0, upBound=None, cat=LpInteger
+        if not self.relocations_disabled:
+            filtered_ijtms = (
+                self._regions,
+                self._regions,
+                self._relocation_periods,
+                self._vehicle_types,
+                range(self._n_scenarios),
             )
-            self.R = {key: {key: value} for key, value in self.R.items()}
-        else:
             self.R = LpVariable.dicts(
-                "r", ijtms, lowBound=0, upBound=None, cat=LpInteger
+                "r", filtered_ijtms, lowBound=0, upBound=None, cat=LpInteger
             )
 
         # vehicle system state
@@ -156,7 +162,7 @@ class StochasticProgram(MeasureTimeTrait):
         )
 
         # binary variable - no vehicles remain in region
-        self.Rb = LpVariable.dicts("rb", itms, lowBound=0, upBound=1, cat=LpInteger)
+        self.Vb = LpVariable.dicts("rb", itms, lowBound=0, upBound=1, cat=LpInteger)
 
         # unfulfilled demand for region tuple
         self.U = LpVariable.dicts("u", ijtms, lowBound=0, upBound=None, cat=LpInteger)
@@ -180,7 +186,7 @@ class StochasticProgram(MeasureTimeTrait):
         return self._vehicle_types[prev_index]
 
     def _get_R(self, i, j, t, m, s):
-        if not self.relocations_disabled or i == j:
+        if not self.relocations_disabled and t in self._relocation_periods:
             return self.R[i][j][t][m][s]
         return 0
 
@@ -267,11 +273,8 @@ class StochasticProgram(MeasureTimeTrait):
     def _create_relocation_binary_constraints(self):
         relocation_binary_constraints = [
             (
-                (
-                    self.R[i][i][t][m][s]
-                    <= self._fleet_capacity[m] * self.Rb[i][t][m][s]
-                ),
-                f"force binary variable Rb to represent whether any vehicles are remaining"
+                (self.V[i][t][m][s] <= self._fleet_capacity[m] * self.Vb[i][t][m][s]),
+                f"force binary variable Vb to represent whether any vehicles are idle"
                 + f"in region {i} in period {t} with vehicle {m} in scenario {s}",
             )
             for i in self._regions
@@ -292,7 +295,6 @@ class StochasticProgram(MeasureTimeTrait):
                             for m_ in self._get_lower_vehicles(m) + [m]
                         ]
                     )
-                    # * 100
                     * self.bigUb[i][t][m][s]
                 ),
                 f"force binary variable bigUb to represent whether any demand remains unfilled"
@@ -310,7 +312,7 @@ class StochasticProgram(MeasureTimeTrait):
     def _create_no_refused_demand_constraints(self):
         no_refused_demand_constraints = [
             (
-                (self.bigUb[i][t][m][s] + self.Rb[i][t][m][s] <= 1),
+                (self.bigUb[i][t][m][s] + self.Vb[i][t][m][s] <= 1),
                 f"only allow to refuse demand if demand cannot be fulfilled due to lack of vehicles"
                 + f"in region {i} at period {t} with {m} in scenario {s}",
             )
@@ -386,7 +388,7 @@ class StochasticProgram(MeasureTimeTrait):
     def _create_initial_allocation_constraints(self):
         initial_allocation_constraints = [
             (
-                self.X[i][0][m][s] == self._initial_allocation[i][m],
+                self.X_[i][0][m][s] == self._initial_allocation[i][m],
                 f"starting allocation of {m} in region {i} in scenario {s}",
             )
             for i in self._regions
@@ -412,28 +414,18 @@ class StochasticProgram(MeasureTimeTrait):
                 for m in self._vehicle_types
             ]
 
-            if self.relocations_disabled:
-                non_anticipativity_constraints += [
-                    (
-                        self._get_R(i, i, time, m, s) == self._get_R(i, i, time, m, s_),
-                        f"parking vehicles in region {i} in period {time} with {m} must"
-                        + f" be the same for scenario {s} and {s_}",
-                    )
-                    for s, s_ in zip(scenarios[:], scenarios[1:])
-                    for i in self._regions
-                    for m in self._vehicle_types
-                ]
-            else:
+            if not self.relocations_disabled:
                 non_anticipativity_constraints += [
                     (
                         self._get_R(i, j, time, m, s) == self._get_R(i, j, time, m, s_),
-                        f"relocations/parking vehicles from {i} to {j} in period {time}"
+                        f"relocations from {i} to {j} in period {time}"
                         + f" with {m} must be the same for scenario {s} and {s_}",
                     )
                     for s, s_ in zip(scenarios[:], scenarios[1:])
                     for i in self._regions
                     for j in self._regions
                     for m in self._vehicle_types
+                    if i != j
                 ]
 
             self._constraints["non_anticipativity"] = non_anticipativity_constraints
@@ -463,7 +455,6 @@ class StochasticProgram(MeasureTimeTrait):
         self.model.solve(solver=self._get_solver(**kwargs))
         print("Status:", LpStatus[self.model.status])
         print("Optimal Value of Objective Function: ", value(self.model.objective))
-        print(f"Runtime without preprocessing: {self.model.solutionTime:.2f} seconds")
 
     # ---------------------------------------------------------------------------- #
     #                               Result Evaluation                              #
@@ -473,16 +464,10 @@ class StochasticProgram(MeasureTimeTrait):
         results = pd.DataFrame.from_dict(
             {
                 (i, j, t, m, s): {
-                    "relocations/parking": int(value(self._get_R(i, j, t, m, s))),
+                    "relocations": int(value(self._get_R(i, j, t, m, s))),
                     "trips": int(value(self.Y[i][j][t][m][s])),
                     "accumulated_unfulfilled_demand": int(value(self.U[i][j][t][m][s])),
                     "demand": self._demand[(i, j, t, m, s)],
-                    # "unfulfilled_demand": int(
-                    #     value(self.U[i][j][t][m][s])
-                    #     - value(self.U[i][j][t][self._get_previous_vehicle_type(m)][s])
-                    #     if self._get_previous_vehicle_type(m)
-                    #     else 0
-                    # ),
                 }
                 for i in self._regions
                 for j in self._regions
@@ -503,15 +488,11 @@ class StochasticProgram(MeasureTimeTrait):
             {
                 (i, t, m, s): {
                     "accumulated_unfulfilled_demand": int(value(self.bigU[i][t][m][s])),
-                    # "unfulfilled_demand": int(
-                    #     value(self.bigU[i][t][m][s])
-                    #     - value(self.bigU[i][t][self._get_previous_vehicle_type(m)][s])
-                    #     if self._get_previous_vehicle_type(m)
-                    #     else 0
-                    # ),
                     "has_unfulfilled_demand": int(value(self.bigUb[i][t][m][s])),
-                    "has_remaining_vehicles": int(value(self.Rb[i][t][m][s])),
-                    "n_vehicles": int(value(self.X[i][t][m][s])),
+                    "has_remaining_vehicles": int(value(self.Vb[i][t][m][s])),
+                    "n_parking": int(value(self.V[i][t][m][s])),
+                    "n_vehicles_after_demand": int(value(self.X[i][t][m][s])),
+                    "n_vehicles_before_demand": int(value(self.X_[i][t][m][s])),
                 }
                 for i in self._regions
                 for t in self._periods[:-1]
@@ -528,24 +509,19 @@ class StochasticProgram(MeasureTimeTrait):
 
     def get_summary(self):
         tuple_df = self.get_results_by_tuple_df().reset_index()
+        region_df = self.get_results_by_region_df().reset_index()
 
         return {
             "status": LpStatus[self.model.status],
             "objective": value(self.model.objective),
-            "solver_runtime": self.model.solutionTime,
+            # "solver_runtime": self.model.solutionTime,
             # the values belows are summed up for all possible scenarios
             "n_trips_avg": tuple_df["trips"].sum() / self._n_scenarios,
             "n_unfilled_demand_avg": (tuple_df["demand"] - tuple_df["trips"]).sum()
             / self._n_scenarios,
             "demand_avg": tuple_df["demand"].sum() / self._n_scenarios,
-            "n_parking_avg": tuple_df[
-                tuple_df["start_hex_ids"] == tuple_df["end_hex_ids"]
-            ]["relocations/parking"].sum()
-            / self._n_scenarios,
-            "n_relocations_avg": tuple_df[
-                tuple_df["start_hex_ids"] != tuple_df["end_hex_ids"]
-            ]["relocations/parking"].sum()
-            / self._n_scenarios,
+            "n_parking_avg": region_df["n_parking"].sum() / self._n_scenarios,
+            "n_relocations_avg": tuple_df["relocations"].sum() / self._n_scenarios,
         }
 
     def get_unfulfilled_demand(self):

@@ -6,6 +6,7 @@ from modules.measure_time_trait import MeasureTimeTrait
 from modules.config import (
     ALL_VEHICLE_TYPES,
     PERIOD_DURATION,
+    RELOCATION_PERIODS_INDEX,
 )
 from modules.stochastic_program.stochastic_program import StochasticProgram
 
@@ -196,4 +197,7 @@ class StochasticProgramFactory(MeasureTimeTrait):
             n_scenarios=self._scenarios.index.get_level_values("scenarios").nunique(),
             fleet_capacity=self._fleet_capacity,
             max_demand=self._max_demand,
+            relocation_periods=list(
+                map(lambda x: x * PERIOD_DURATION, RELOCATION_PERIODS_INDEX)
+            ),
         )
