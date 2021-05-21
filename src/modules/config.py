@@ -18,7 +18,7 @@ N_REALIZATIONS = 4
 # where |T| is the number of periods, which is equal to 24/PERIDOD_DURATION, because we
 # examining a 24 hour time interval
 N_SCENARIOS = int(N_REALIZATIONS ** (24 / PERIOD_DURATION - 1))
-N_REDUCED_SCNEARIOS = 1
+N_REDUCED_SCNEARIOS = 2
 
 ALL_VEHICLE_TYPES = ["kick_scooter", "bicycle", "car"]  # short trips -> long trips
 
@@ -26,6 +26,7 @@ ALL_VEHICLE_TYPES = ["kick_scooter", "bicycle", "car"]  # short trips -> long tr
 # Solver options
 SOLVER = "COIN_CMD"
 SOLVER_PATHS = {"COIN_CMD": os.path.join("/usr", "bin", "cbc")}
+SOLVER_OPTIONS = {"logPath": "log", "msg": 0, "threads": 15}
 # Solver links
 # COIN_CMD: https://github.com/coin-or/Cbc
 

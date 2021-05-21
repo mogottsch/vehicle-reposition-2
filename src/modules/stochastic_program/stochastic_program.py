@@ -18,6 +18,7 @@ from pulp.pulp import LpAffineExpression
 
 from modules.measure_time_trait import MeasureTimeTrait
 from modules.config import (
+    SOLVER_OPTIONS,
     SOLVER_PATHS,
     PERIOD_DURATION,
     SOLVER,
@@ -452,7 +453,7 @@ class StochasticProgram(MeasureTimeTrait):
         )
 
     def solve(self, **kwargs):
-        self.model.solve(solver=self._get_solver(**kwargs))
+        self.model.solve(solver=self._get_solver(**SOLVER_OPTIONS, **kwargs))
         print("Status:", LpStatus[self.model.status])
         print("Optimal Value of Objective Function: ", value(self.model.objective))
 
