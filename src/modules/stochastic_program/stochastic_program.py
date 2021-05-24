@@ -48,6 +48,15 @@ class StochasticProgram(MeasureTimeTrait):
     _Y: dict
     _R: dict
     _X: dict
+    _X_: dict
+    _V: dict
+    _Vb: dict
+    _U: dict
+    _bigU: dict
+    _bigUb: dict
+    _eta: LpVariable
+    _theta: dict
+
     _objectives: dict
     _objective_function: LpAffineExpression
     _constraints: dict
@@ -105,7 +114,7 @@ class StochasticProgram(MeasureTimeTrait):
 
     # beta is the weight assigned to the value-at-risk
     # if beta is zero we do not include the value-at-risk
-    def create_model(self, warmStart=False,beta=0):
+    def create_model(self, warmStart=False, beta=0):
         self._model = LpProblem(name="vehicle-reposition", sense=LpMaximize)
 
         if not warmStart:
@@ -140,7 +149,7 @@ class StochasticProgram(MeasureTimeTrait):
         )
 
         # trips
-        self.Y = LpVariable.dicts("y", ijtms, lowBound=0, upBound=None, cat=LpInteger)
+        self._Y = LpVariable.dicts("y", ijtms, lowBound=0, upBound=None, cat=LpInteger)
 
         # relocations
         if not self.relocations_disabled:
@@ -151,37 +160,39 @@ class StochasticProgram(MeasureTimeTrait):
                 self._vehicle_types,
                 range(self._n_scenarios),
             )
-            self.R = LpVariable.dicts(
+            self._R = LpVariable.dicts(
                 "r", filtered_ijtms, lowBound=0, upBound=None, cat=LpInteger
             )
 
         # vehicle system state
-        self.X = LpVariable.dicts(
+        self._X = LpVariable.dicts(
             "x", itmsFull, lowBound=0, upBound=None, cat=LpInteger
         )
-        self.X_ = LpVariable.dicts(
+        self._X_ = LpVariable.dicts(
             "x'", itmsFull, lowBound=0, upBound=None, cat=LpInteger
         )
 
-        self.V = LpVariable.dicts(
+        self._V = LpVariable.dicts(
             "v", itmsFull, lowBound=0, upBound=None, cat=LpInteger
         )
 
         # binary variable - no vehicles remain in region
-        self.Vb = LpVariable.dicts("vb", itms, lowBound=0, upBound=1, cat=LpInteger)
+        self._Vb = LpVariable.dicts("vb", itms, lowBound=0, upBound=1, cat=LpInteger)
 
         # unfulfilled demand for region tuple
-        self.U = LpVariable.dicts("u", ijtms, lowBound=0, upBound=None, cat=LpInteger)
+        self._U = LpVariable.dicts("u", ijtms, lowBound=0, upBound=None, cat=LpInteger)
 
         # unfullfilled demand for region
-        self.bigU = LpVariable.dicts("U", itms, lowBound=0, upBound=None, cat=LpInteger)
+        self._bigU = LpVariable.dicts(
+            "U", itms, lowBound=0, upBound=None, cat=LpInteger
+        )
 
         # binary variable - no unfullfilled demand in regions
-        self.bigUb = LpVariable.dicts("Ub", itms, cat=LpBinary)
+        self._bigUb = LpVariable.dicts("Ub", itms, cat=LpBinary)
 
         if beta != 0:
-            self.eta = LpVariable("value-at-risk", cat=LpContinuous)
-            self.theta = LpVariable.dicts(
+            self._eta = LpVariable("value-at-risk", cat=LpContinuous)
+            self._theta = LpVariable.dicts(
                 "theta", range(self._n_scenarios), cat=LpBinary
             )
 
@@ -199,20 +210,20 @@ class StochasticProgram(MeasureTimeTrait):
 
     def _get_R(self, i, j, t, m, s):
         if not self.relocations_disabled and t in self._relocation_periods:
-            return self.R[i][j][t][m][s]
+            return self._R[i][j][t][m][s]
         return 0
 
     def _get_U(self, i, j, t, m, s):
         if m is None:
             return None
-        return self.U[i][j][t][m][s]
+        return self._U[i][j][t][m][s]
 
     def _create_objectives(self):
         self._objectives = {
             s: lpSum(
                 [
                     (
-                        self.Y[i][j][t][m][s] * self._profits[(i, j, m)]
+                        self._Y[i][j][t][m][s] * self._profits[(i, j, m)]
                         - self._get_R(i, j, t, m, s) * self._costs[(i, j, m)]
                     )
                     for i in self._regions
@@ -253,9 +264,9 @@ class StochasticProgram(MeasureTimeTrait):
         demand_constraints = [
             (
                 (
-                    self.Y[i][j][t][m][s]
+                    self._Y[i][j][t][m][s]
                     == self._demand[(i, j, t, m, s)]
-                    - self.U[i][j][t][m][s]
+                    - self._U[i][j][t][m][s]
                     + self._get_U(
                         i,
                         j,
@@ -280,8 +291,8 @@ class StochasticProgram(MeasureTimeTrait):
         big_u_sum_constraints = [
             (
                 (
-                    self.bigU[i][t][m][s]
-                    == lpSum([self.U[i][j][t][m][s]] for j in self._regions)
+                    self._bigU[i][t][m][s]
+                    == lpSum([self._U[i][j][t][m][s]] for j in self._regions)
                 ),
                 f"accumulated unfulfilled trips in region {i} in period {t} with vehicle {m}"
                 + f" in scenario {s} is equal to total unfulfilled trips in that region",
@@ -296,7 +307,7 @@ class StochasticProgram(MeasureTimeTrait):
     def _create_relocation_binary_constraints(self):
         relocation_binary_constraints = [
             (
-                (self.V[i][t][m][s] <= self._fleet_capacity[m] * self.Vb[i][t][m][s]),
+                (self._V[i][t][m][s] <= self._fleet_capacity[m] * self._Vb[i][t][m][s]),
                 f"force binary variable Vb to represent whether any vehicles are idle"
                 + f"in region {i} in period {t} with vehicle {m} in scenario {s}",
             )
@@ -311,14 +322,14 @@ class StochasticProgram(MeasureTimeTrait):
         unfulfilled_demand_binary_constraints = [
             (
                 (
-                    self.bigU[i][t][m][s]
+                    self._bigU[i][t][m][s]
                     <= sum(
                         [
                             self._max_demand[(i, t, m_, s)]
                             for m_ in self._get_lower_vehicles(m) + [m]
                         ]
                     )
-                    * self.bigUb[i][t][m][s]
+                    * self._bigUb[i][t][m][s]
                 ),
                 f"force binary variable bigUb to represent whether any demand remains unfilled"
                 + f"in region {i} in period {t} with vehicle {m} in scenario {s}",
@@ -335,7 +346,7 @@ class StochasticProgram(MeasureTimeTrait):
     def _create_no_refused_demand_constraints(self):
         no_refused_demand_constraints = [
             (
-                (self.bigUb[i][t][m][s] + self.Vb[i][t][m][s] <= 1),
+                (self._bigUb[i][t][m][s] + self._Vb[i][t][m][s] <= 1),
                 f"only allow to refuse demand if demand cannot be fulfilled due to lack of vehicles"
                 + f"in region {i} at period {t} with {m} in scenario {s}",
             )
@@ -350,7 +361,7 @@ class StochasticProgram(MeasureTimeTrait):
         relocations_constraints = [
             (
                 (
-                    self.X[i][t][m][s]
+                    self._X[i][t][m][s]
                     + lpSum(
                         [
                             self._get_R(j, i, t, m, s) - self._get_R(i, j, t, m, s)
@@ -358,7 +369,7 @@ class StochasticProgram(MeasureTimeTrait):
                             if j != i
                         ]
                     )
-                    == self.X_[i][t + PERIOD_DURATION][m][s]
+                    == self._X_[i][t + PERIOD_DURATION][m][s]
                 ),
                 f"Number of {m} after realized trips in region {i} (period {t}, scenario {s})"
                 + f" is equal to the number of vehicles before realized trips of the next period {t +PERIOD_DURATION}"
@@ -375,9 +386,9 @@ class StochasticProgram(MeasureTimeTrait):
     def _create_vehicle_trips_starting_constraints(self):
         vehicle_trips_starting_constraints = [
             (
-                self.X_[i][t][m][s]
-                == self.V[i][t][m][s]
-                + lpSum([self.Y[i][j][t][m][s] for j in self._regions]),
+                self._X_[i][t][m][s]
+                == self._V[i][t][m][s]
+                + lpSum([self._Y[i][j][t][m][s] for j in self._regions]),
                 f"number of {m} in region {i} before demand realization (period {t}, scenario {s})"
                 + " is equal to the number of outgoing trips plus the number of idle vehicles",
             )
@@ -393,9 +404,9 @@ class StochasticProgram(MeasureTimeTrait):
     def _create_vehicle_trips_ending_constraints(self):
         vehicle_trips_ending_constraints = [
             (
-                self.X[i][t][m][s]
-                == self.V[i][t][m][s]
-                + lpSum([self.Y[j][i][t][m][s] for j in self._regions]),
+                self._X[i][t][m][s]
+                == self._V[i][t][m][s]
+                + lpSum([self._Y[j][i][t][m][s] for j in self._regions]),
                 f"number of {m} in region {i} (period {t+1}, scenario {s}) after demand realization"
                 + "is equal to the number of idle vehicles plus the number of incoming trips",
             )
@@ -411,7 +422,7 @@ class StochasticProgram(MeasureTimeTrait):
     def _create_initial_allocation_constraints(self):
         initial_allocation_constraints = [
             (
-                self.X_[i][0][m][s] == self._initial_allocation[i][m],
+                self._X_[i][0][m][s] == self._initial_allocation[i][m],
                 f"starting allocation of {m} in region {i} in scenario {s}",
             )
             for i in self._regions
@@ -427,7 +438,7 @@ class StochasticProgram(MeasureTimeTrait):
 
             non_anticipativity_constraints += [
                 (
-                    self.Y[i][j][time][m][s] == self.Y[i][j][time][m][s_],
+                    self._Y[i][j][time][m][s] == self._Y[i][j][time][m][s_],
                     f"trips from {i} to {j} in period {time} with {m} must"
                     + f" be the same for scenario {s} and {s_}",
                 )
@@ -455,7 +466,7 @@ class StochasticProgram(MeasureTimeTrait):
 
     def _create_value_at_risk_constraints(self):
         value_at_risk_contraints = []
-        [self._objective_function for s in range(self._n_scenarios)]
+        [self.eta - self._objective_function for s in range(self._n_scenarios)]
 
     # ---------------------------------------------------------------------------- #
     #                                 Solving                                      #
@@ -492,8 +503,10 @@ class StochasticProgram(MeasureTimeTrait):
             {
                 (i, j, t, m, s): {
                     "relocations": int(value(self._get_R(i, j, t, m, s))),
-                    "trips": int(value(self.Y[i][j][t][m][s])),
-                    "accumulated_unfulfilled_demand": int(value(self.U[i][j][t][m][s])),
+                    "trips": int(value(self._Y[i][j][t][m][s])),
+                    "accumulated_unfulfilled_demand": int(
+                        value(self._U[i][j][t][m][s])
+                    ),
                     "demand": self._demand[(i, j, t, m, s)],
                 }
                 for i in self._regions
@@ -514,12 +527,14 @@ class StochasticProgram(MeasureTimeTrait):
         results = pd.DataFrame.from_dict(
             {
                 (i, t, m, s): {
-                    "accumulated_unfulfilled_demand": int(value(self.bigU[i][t][m][s])),
-                    "has_unfulfilled_demand": int(value(self.bigUb[i][t][m][s])),
-                    "has_remaining_vehicles": int(value(self.Vb[i][t][m][s])),
-                    "n_parking": int(value(self.V[i][t][m][s])),
-                    "n_vehicles_after_demand": int(value(self.X[i][t][m][s])),
-                    "n_vehicles_before_demand": int(value(self.X_[i][t][m][s])),
+                    "accumulated_unfulfilled_demand": int(
+                        value(self._bigU[i][t][m][s])
+                    ),
+                    "has_unfulfilled_demand": int(value(self._bigUb[i][t][m][s])),
+                    "has_remaining_vehicles": int(value(self._Vb[i][t][m][s])),
+                    "n_parking": int(value(self._V[i][t][m][s])),
+                    "n_vehicles_after_demand": int(value(self._X[i][t][m][s])),
+                    "n_vehicles_before_demand": int(value(self._X_[i][t][m][s])),
                 }
                 for i in self._regions
                 for t in self._periods[:-1]

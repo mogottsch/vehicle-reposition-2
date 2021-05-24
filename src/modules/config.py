@@ -5,12 +5,12 @@ PATH_DIR_TRIPS_RAW = os.path.join(
     "/home", "moritz", "data", "Uni", "Bachelorseminar", "Trips"
 )
 
-H3_RESOLUTION = 7
+H3_RESOLUTION = 6
 PERIOD_DURATION = 12  # in hours
 RELOCATION_PERIODS_INDEX = [0]
 MODE_IS_WEEKEND = True
 
-N_REALIZATIONS = 4
+N_REALIZATIONS = 8
 
 # the number of scenarios is determined by the period duration and the number of different
 # realizations of each random variable
@@ -26,7 +26,7 @@ ALL_VEHICLE_TYPES = ["kick_scooter", "bicycle", "car"]  # short trips -> long tr
 # Solver options
 SOLVER = "COIN_CMD"
 SOLVER_PATHS = {"COIN_CMD": os.path.join("/usr", "bin", "cbc")}
-SOLVER_OPTIONS = {"logPath": "log", "msg": 0, "threads": 15}
+SOLVER_OPTIONS = {"logPath": "log", "msg": 0, "threads": 14}
 # Solver links
 # COIN_CMD: https://github.com/coin-or/Cbc
 
