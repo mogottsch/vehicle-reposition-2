@@ -232,12 +232,15 @@ class StochasticProgram(MeasureTimeTrait):
         self._objectives = {
             s: lpSum(
                 [
-                    (
-                        self._Y[i][j][t][m][s] * self._profits[(i, j, m)]
-                        - self._get_R(i, j, t, m, s) * self._costs[(i, j, m)]
+                    lpSum(
+                        [
+                            self._Y[i][j][t][m][s] * self._profits[(i, j, m)]
+                            - self._get_R(i, j, t, m, s) * self._costs[(i, j, m)]
+                            for j in self._regions
+                        ]
+                        + [-1 * self._V[i][t][m][s] * self._costs[(i, i, m)]]
                     )
                     for i in self._regions
-                    for j in self._regions
                     for t in self._periods[:-1]
                     for m in self._vehicle_types
                 ]
