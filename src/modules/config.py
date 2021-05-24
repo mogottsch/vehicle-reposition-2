@@ -21,6 +21,26 @@ N_SCENARIOS = int(N_REALIZATIONS ** (24 / PERIOD_DURATION - 1))
 N_REDUCED_SCNEARIOS = 8
 
 ALL_VEHICLE_TYPES = ["kick_scooter", "bicycle", "car"]  # short trips -> long trips
+VEHICLE_PROFIT = {  # euro / min
+    "kick_scooter": 0.19,
+    "bicycle": 0.1 / 3,
+    "car": 0.29,
+}
+
+# relocations at once, e.g. 40 kick scooters in 1 truck
+# used for relocation cost calculation
+VEHICLE_STACK_RELOCATIONS = {
+    "kick_scooter": 40,
+    "bicycle": 20,
+    "car": 1,
+}
+RELOCATION_DRIVER_SALARY = 14  # euro/hour
+
+VEHICLE_PARKING_COSTS = {  # eur/2h
+    "kick_scooter": 0.4,
+    "car": 2,
+    "bicycle": 0.1,
+}
 
 
 # Solver options
@@ -39,6 +59,7 @@ PATH_SCENARIOS = os.path.join(ROOT, "data", "scenarios.pkl")
 PATH_SCENARIOS_REDUCED = os.path.join(ROOT, "data", "scenarios_reduced.pkl")
 PATH_SCENARIO_PROBABILITY = os.path.join(ROOT, "data", "scenarios_probability.pkl")
 
+PATH_SPEEDS = os.path.join(ROOT, "data", "speeds.pkl")
 PATH_DISTANCES = os.path.join(ROOT, "data", "distances.pkl")
 PATH_FLEET_SIZE = os.path.join(ROOT, "data", "fleet_size.pkl")
 PATH_INITIAL_ALLOCATION = os.path.join(ROOT, "data", "initial_allocation.pkl")
