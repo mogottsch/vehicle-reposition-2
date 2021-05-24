@@ -35,17 +35,17 @@ class StochasticProgramFactory(MeasureTimeTrait):
 
     def __init__(
         self,
-        _scenarios: DataFrame,
-        _distances: DataFrame,
-        _probabilities: DataFrame,
-        _node_df: DataFrame,
-        _vehicle_types: list = ALL_VEHICLE_TYPES,
+        scenarios: DataFrame,
+        distances: DataFrame,
+        probabilities: DataFrame,
+        node_df: DataFrame,
+        vehicle_types: list = ALL_VEHICLE_TYPES,
         include_methods: list = [],
     ) -> None:
-        self._scenarios = _scenarios
-        self._distances = _distances
-        self._probabilities = _probabilities
-        self._node_df = _node_df
+        self._scenarios = scenarios
+        self._distances = distances
+        self._probabilities = probabilities
+        self._node_df = node_df
 
         self._demand = {}
 
@@ -66,7 +66,7 @@ class StochasticProgramFactory(MeasureTimeTrait):
         # add additional period for last vehicle state
         self._periods = _periods + [_periods[-1] + PERIOD_DURATION]
 
-        self._vehicle_types = _vehicle_types
+        self._vehicle_types = vehicle_types
 
         self.include_methods = include_methods
 

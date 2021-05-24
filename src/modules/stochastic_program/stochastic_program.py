@@ -2,6 +2,7 @@ import datetime
 import pandas as pd
 from operator import itemgetter
 from typing import DefaultDict, List
+from pandas.core.frame import DataFrame
 from pulp import (
     LpMaximize,
     LpProblem,
@@ -27,6 +28,33 @@ from modules.config import (
 
 
 class StochasticProgram(MeasureTimeTrait):
+    """
+    Creates and solves a stochastic program of the vehicle relocation problem.
+
+    Attributes
+    ----------
+    relocations_disabled : bool
+        disables relocations in the lp if set to true
+    non_anticipativity_disabled : bool
+        disables non-anticipativity in the lp if set to true
+        useful for calculating the value of perfect information
+
+    Methods
+    -------
+    create_model(warmStart=False, beta=0.0, alpha=0.9)
+        creates the stochastic program as a integer linear program in pulp
+    solve(**kwargs)
+        solves the previously created model with the configurations in config.py
+    get_results_by_tuple_df()
+        returns a dataframe of all variables that are indexed by region tuples
+    get_results_by_region_df()
+        returns a dataframe of all variables that are indexed by regions
+    get_summary()
+        returns summary of solved lp
+    get_unfulfilled_demand()
+        returns unfulfilled demand after lp is solved
+    """
+
     # data
     _demand: DefaultDict
     _costs: DefaultDict
@@ -116,6 +144,21 @@ class StochasticProgram(MeasureTimeTrait):
     # beta is the weight assigned to the value-at-risk
     # if beta is zero we do not include the value-at-risk
     def create_model(self, warmStart=False, beta=0.0, alpha=0.9):
+        """Creates the stochastic program as a integer linear program in pulp
+
+        Parameters
+        ----------
+        warmStart : bool, optional
+            if set to true does not recreate variables, so that previous
+            solutions can be used as a starting point (default is False)
+        beta : float, optional
+            weight of value-at-risk, between 0.0 and 1.0 (default is 0.0)
+        alpha : float, optional
+            only used when beta is not 0.0, for a given α ∈ (0, 1), the
+            value-at-risk, VaR, is equal to the largest value η ensuring
+            that the probability of obtaining a profit less than η is
+            lower than 1 − α (default is 0.9)
+        """
         self._beta = float(beta)
         self._alpha = float(alpha)
 
@@ -524,6 +567,15 @@ class StochasticProgram(MeasureTimeTrait):
         )
 
     def solve(self, **kwargs):
+        """Solves the lp and prints objective and status when finished
+
+        Parameters
+        ----------
+        **kwargs
+            will be passed to pulps solver constructor and solve method,
+            see https://coin-or.github.io/pulp for more details
+
+        """
         self._model.solve(solver=self._get_solver(**SOLVER_OPTIONS, **kwargs))
         print("Status:", LpStatus[self._model.status])
         print("Optimal Value of Objective Function: ", value(self._model.objective))
@@ -532,7 +584,12 @@ class StochasticProgram(MeasureTimeTrait):
     #                               Result Evaluation                              #
     # ---------------------------------------------------------------------------- #
 
-    def get_results_by_tuple_df(self):
+    def get_results_by_tuple_df(self) -> DataFrame:
+        """Returns a dataframe of all variables that are indexed by region tuples
+
+        The returned variables are relocations, trips, accumulated_unfulfilled_demand and demand.
+        Note that eventhough demand is not a variable it is still returned as it is useful information.
+        """
         results = pd.DataFrame.from_dict(
             {
                 (i, j, t, m, s): {
@@ -557,7 +614,12 @@ class StochasticProgram(MeasureTimeTrait):
         )
         return results
 
-    def get_results_by_region_df(self):
+    def get_results_by_region_df(self) -> DataFrame:
+        """Returns a dataframe of all variables that are indexed by regions
+
+        The returned variables are accumulated_unfulfilled_demand, has_unfulfilled_demand,
+        has_remaining_vehicles, n_parking, n_vehicles_after_demand and n_vehicles_before_demand
+        """
         results = pd.DataFrame.from_dict(
             {
                 (i, t, m, s): {
@@ -583,7 +645,34 @@ class StochasticProgram(MeasureTimeTrait):
         )
         return results
 
-    def get_summary(self):
+    def get_summary(self) -> dict:
+        """Returns summary of solved lp as dict
+
+        The following key value pairs are returned
+
+        status
+            can be optimal, infeasible or unbound
+        objective
+            value of the objective function
+        expected_profit
+            expected profit of all scenarios (objective without value-at-risk)
+        eta
+            value-at-risk for given alpha
+        beta
+            weighting of value-at-risk in objective function
+        alpha
+            parameter of value-at-risk
+        n_trips_avg
+            average number of trips over all scenario
+        n_unfilled_demand_avg
+            average number of unfulfilled demand over all scenario
+        demand_avg
+            average number of demand over all scenario
+        n_parking_avg
+            average number of parking vehicles over all scenario
+        n_relocations_avg
+            average number of relocation over all scenarios
+        """
         tuple_df = self.get_results_by_tuple_df().reset_index()
         region_df = self.get_results_by_region_df().reset_index()
 
@@ -610,7 +699,8 @@ class StochasticProgram(MeasureTimeTrait):
             "n_relocations_avg": tuple_df["relocations"].sum() / self._n_scenarios,
         }
 
-    def get_unfulfilled_demand(self):
+    def get_unfulfilled_demand(self) -> DataFrame:
+        """Returns the unfulfilled demand as a dataframe"""
         unfulfilled_demand = (
             self.get_results_by_tuple_df()["accumulated_unfulfilled_demand"]
             .to_frame()

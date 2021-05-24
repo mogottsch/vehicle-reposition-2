@@ -34,3 +34,4 @@ General tips to improve performance (and decrease model accuracy):
 - Reduce number of (reduced) scenarios. e.g. set `N_REDUCED_SCENARIOS` to 4.
 - Increase number of threads used by the solver. Set `SOLVER_OPTIONS` to `{"threads": x}`
 - Discard value-at-risk. Set `beta` to `0` when calling `stochastic_program.create_model(beta=0)`.
+- Decrease fleet size `factory.set_initial_allocation(small_fleet_size)`.
