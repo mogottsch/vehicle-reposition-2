@@ -42,6 +42,7 @@ class StochasticProgram(MeasureTimeTrait):
     _n_scenarios: int
     _fleet_capacity: dict
     _max_demand: DefaultDict
+    _M: int = 1_000_000
 
     # model
     _model: LpProblem
@@ -58,7 +59,7 @@ class StochasticProgram(MeasureTimeTrait):
     _theta: dict
 
     _objectives: dict
-    _objective_function: LpAffineExpression
+    _expected_profit: LpAffineExpression
     _constraints: dict
 
     # options
@@ -114,23 +115,31 @@ class StochasticProgram(MeasureTimeTrait):
 
     # beta is the weight assigned to the value-at-risk
     # if beta is zero we do not include the value-at-risk
-    def create_model(self, warmStart=False, beta=0):
+    def create_model(self, warmStart=False, beta=0.0, alpha=0.9):
+        self._beta = float(beta)
+        self._alpha = float(alpha)
+
         self._model = LpProblem(name="vehicle-reposition", sense=LpMaximize)
 
         if not warmStart:
-            self._create_variables(beta)
+            self._create_variables()
 
         self._create_objectives()
 
-        self._create_constraints(beta)
+        self._create_constraints()
 
         for constraint_group in self._constraints.values():
             for constraint in constraint_group:
                 self._model += constraint
 
-        self._model += self._objective_function
+        if self._beta != 0.0:
+            self._model += (
+                1 - self._beta
+            ) * self._expected_profit + self._beta * self._eta
+        else:
+            self._model += self._expected_profit
 
-    def _create_variables(self, beta) -> None:
+    def _create_variables(self) -> None:
         tms = (
             self._periods[:-1],
             self._vehicle_types,
@@ -148,6 +157,7 @@ class StochasticProgram(MeasureTimeTrait):
             range(self._n_scenarios),
         )
 
+        self._expected_profit = LpVariable("expected profit", cat=LpContinuous)
         # trips
         self._Y = LpVariable.dicts("y", ijtms, lowBound=0, upBound=None, cat=LpInteger)
 
@@ -190,7 +200,7 @@ class StochasticProgram(MeasureTimeTrait):
         # binary variable - no unfullfilled demand in regions
         self._bigUb = LpVariable.dicts("Ub", itms, cat=LpBinary)
 
-        if beta != 0:
+        if self._beta != 0.0:
             self._eta = LpVariable("value-at-risk", cat=LpContinuous)
             self._theta = LpVariable.dicts(
                 "theta", range(self._n_scenarios), cat=LpBinary
@@ -235,14 +245,14 @@ class StochasticProgram(MeasureTimeTrait):
             for s in range(self._n_scenarios)
         }
 
-        self._objective_function = lpSum(
+        self._expected_profit = lpSum(
             [
                 self._weighting[s] * objective
                 for s, objective in self._objectives.items()
             ]
         )
 
-    def _create_constraints(self, beta):
+    def _create_constraints(self):
         self._constraints = {}
         self._create_demand_constraints()
         self._create_relocation_binary_constraints()
@@ -257,7 +267,7 @@ class StochasticProgram(MeasureTimeTrait):
         if not self.non_anticipativity_disabled:
             self._create_non_anticipativity_constraints()
 
-        if beta != 0:
+        if self._beta != 0.0:
             self._create_value_at_risk_constraints()
 
     def _create_demand_constraints(self):
@@ -466,7 +476,28 @@ class StochasticProgram(MeasureTimeTrait):
 
     def _create_value_at_risk_constraints(self):
         value_at_risk_contraints = []
-        [self.eta - self._objective_function for s in range(self._n_scenarios)]
+        value_at_risk_contraints += [
+            (
+                self._eta - self._objectives[s] <= self._theta[s] * self._M,
+                f"force theta of scenario {s} to represent whether the objective"
+                + " of that scenario is less than eta",
+            )
+            for s in range(self._n_scenarios)
+        ]
+        value_at_risk_contraints += [
+            (
+                lpSum(
+                    [
+                        self._weighting[s] * self._theta[s]
+                        for s in range(self._n_scenarios)
+                    ]
+                )
+                <= 1 - self._alpha,
+                "ensure that eta is the (1 - alpha)-quantile of the objective distribution",
+            )
+        ]
+
+        self._constraints["value_at_risk"] = value_at_risk_contraints
 
     # ---------------------------------------------------------------------------- #
     #                                 Solving                                      #
@@ -553,9 +584,20 @@ class StochasticProgram(MeasureTimeTrait):
         tuple_df = self.get_results_by_tuple_df().reset_index()
         region_df = self.get_results_by_region_df().reset_index()
 
+        value_at_risk_summary = (
+            {
+                "eta": value(self._eta),
+                "beta": self._beta,
+                "alpha": self._alpha,
+            }
+            if self._beta != 0.0
+            else {}
+        )
         return {
             "status": LpStatus[self._model.status],
             "objective": value(self._model.objective),
+            "expected_profit": value(self._expected_profit),
+            **value_at_risk_summary,
             # the values belows are summed up for all possible scenarios
             "n_trips_avg": tuple_df["trips"].sum() / self._n_scenarios,
             "n_unfilled_demand_avg": (tuple_df["demand"] - tuple_df["trips"]).sum()
