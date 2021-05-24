@@ -22,3 +22,15 @@ Before running any notebook make sure to set the `PATH_DIR_TRIPS_RAW` configurat
 ## Configuration
 
 The `modules/config.py` file allows to configure some of the models hyperparameters as well as the solver that is used to solve the linear program.
+
+## Performance
+
+As the underlying Linear Program of our model has a large number of variables and constraints and solving Integer Linear Programs is generally NP-hard, it can take very long to solve depending on your hardware.  
+General tips to improve performance (and decrease model accuracy):
+
+- Reduce `H3_RESOLUTION` (to 6).
+- Increase `PERIOD_DURATION` (to 12).
+- Only relocate in certain periods, e.g. only the first one. Set `RELOCATION_PERIDOS_INDEX` to 0.
+- Reduce number of (reduced) scenarios. e.g. set `N_REDUCED_SCENARIOS` to 4.
+- Increase number of threads used by the solver. Set `SOLVER_OPTIONS` to `{"threads": x}`
+- Discard value-at-risk. Set `beta` to `0` when calling `stochastic_program.create_model(beta=0)`.
