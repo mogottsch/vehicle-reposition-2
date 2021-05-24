@@ -14,6 +14,7 @@ from pulp import (
     listSolvers,
 )
 from pulp.apis import getSolver
+from pulp.constants import LpBinary, LpContinuous
 from pulp.pulp import LpAffineExpression
 
 from modules.measure_time_trait import MeasureTimeTrait
@@ -47,6 +48,7 @@ class StochasticProgram(MeasureTimeTrait):
     _Y: dict
     _R: dict
     _X: dict
+    _objectives: dict
     _objective_function: LpAffineExpression
     _constraints: dict
 
@@ -101,22 +103,25 @@ class StochasticProgram(MeasureTimeTrait):
     #                               LP Initialization                              #
     # ---------------------------------------------------------------------------- #
 
-    def create_model(self, warmStart=False):
-        self.model = LpProblem(name="vehicle-reposition", sense=LpMaximize)
+    # beta is the weight assigned to the value-at-risk
+    # if beta is zero we do not include the value-at-risk
+    def create_model(self, warmStart=False,beta=0):
+        self._model = LpProblem(name="vehicle-reposition", sense=LpMaximize)
 
         if not warmStart:
-            self._create_variables()
+            self._create_variables(beta)
 
-        self._create_objective_function()
-        self.model += self.objective_function
+        self._create_objectives()
 
-        self._create_constraints()
+        self._create_constraints(beta)
 
         for constraint_group in self._constraints.values():
             for constraint in constraint_group:
-                self.model += constraint
+                self._model += constraint
 
-    def _create_variables(self) -> None:
+        self._model += self._objective_function
+
+    def _create_variables(self, beta) -> None:
         tms = (
             self._periods[:-1],
             self._vehicle_types,
@@ -163,7 +168,7 @@ class StochasticProgram(MeasureTimeTrait):
         )
 
         # binary variable - no vehicles remain in region
-        self.Vb = LpVariable.dicts("rb", itms, lowBound=0, upBound=1, cat=LpInteger)
+        self.Vb = LpVariable.dicts("vb", itms, lowBound=0, upBound=1, cat=LpInteger)
 
         # unfulfilled demand for region tuple
         self.U = LpVariable.dicts("u", ijtms, lowBound=0, upBound=None, cat=LpInteger)
@@ -172,7 +177,13 @@ class StochasticProgram(MeasureTimeTrait):
         self.bigU = LpVariable.dicts("U", itms, lowBound=0, upBound=None, cat=LpInteger)
 
         # binary variable - no unfullfilled demand in regions
-        self.bigUb = LpVariable.dicts("Ub", itms, lowBound=0, upBound=1, cat=LpInteger)
+        self.bigUb = LpVariable.dicts("Ub", itms, cat=LpBinary)
+
+        if beta != 0:
+            self.eta = LpVariable("value-at-risk", cat=LpContinuous)
+            self.theta = LpVariable.dicts(
+                "theta", range(self._n_scenarios), cat=LpBinary
+            )
 
     # returns an array of vehicle types that can fulfill demand the demand of the
     # specified vehicle type, excluding itself
@@ -196,23 +207,31 @@ class StochasticProgram(MeasureTimeTrait):
             return None
         return self.U[i][j][t][m][s]
 
-    def _create_objective_function(self):
-        self.objective_function = lpSum(
+    def _create_objectives(self):
+        self._objectives = {
+            s: lpSum(
+                [
+                    (
+                        self.Y[i][j][t][m][s] * self._profits[(i, j, m)]
+                        - self._get_R(i, j, t, m, s) * self._costs[(i, j, m)]
+                    )
+                    for i in self._regions
+                    for j in self._regions
+                    for t in self._periods[:-1]
+                    for m in self._vehicle_types
+                ]
+            )
+            for s in range(self._n_scenarios)
+        }
+
+        self._objective_function = lpSum(
             [
-                self._weighting[s]
-                * (
-                    self.Y[i][j][t][m][s] * self._profits[(i, j, m)]
-                    - self._get_R(i, j, t, m, s) * self._costs[(i, j, m)]
-                )
-                for i in self._regions
-                for j in self._regions
-                for t in self._periods[:-1]
-                for m in self._vehicle_types
-                for s in range(self._n_scenarios)
+                self._weighting[s] * objective
+                for s, objective in self._objectives.items()
             ]
         )
 
-    def _create_constraints(self):
+    def _create_constraints(self, beta):
         self._constraints = {}
         self._create_demand_constraints()
         self._create_relocation_binary_constraints()
@@ -226,6 +245,9 @@ class StochasticProgram(MeasureTimeTrait):
 
         if not self.non_anticipativity_disabled:
             self._create_non_anticipativity_constraints()
+
+        if beta != 0:
+            self._create_value_at_risk_constraints()
 
     def _create_demand_constraints(self):
         demand_constraints = [
@@ -431,6 +453,10 @@ class StochasticProgram(MeasureTimeTrait):
 
             self._constraints["non_anticipativity"] = non_anticipativity_constraints
 
+    def _create_value_at_risk_constraints(self):
+        value_at_risk_contraints = []
+        [self._objective_function for s in range(self._n_scenarios)]
+
     # ---------------------------------------------------------------------------- #
     #                                 Solving                                      #
     # ---------------------------------------------------------------------------- #
@@ -453,9 +479,9 @@ class StochasticProgram(MeasureTimeTrait):
         )
 
     def solve(self, **kwargs):
-        self.model.solve(solver=self._get_solver(**SOLVER_OPTIONS, **kwargs))
-        print("Status:", LpStatus[self.model.status])
-        print("Optimal Value of Objective Function: ", value(self.model.objective))
+        self._model.solve(solver=self._get_solver(**SOLVER_OPTIONS, **kwargs))
+        print("Status:", LpStatus[self._model.status])
+        print("Optimal Value of Objective Function: ", value(self._model.objective))
 
     # ---------------------------------------------------------------------------- #
     #                               Result Evaluation                              #
@@ -513,9 +539,8 @@ class StochasticProgram(MeasureTimeTrait):
         region_df = self.get_results_by_region_df().reset_index()
 
         return {
-            "status": LpStatus[self.model.status],
-            "objective": value(self.model.objective),
-            # "solver_runtime": self.model.solutionTime,
+            "status": LpStatus[self._model.status],
+            "objective": value(self._model.objective),
             # the values belows are summed up for all possible scenarios
             "n_trips_avg": tuple_df["trips"].sum() / self._n_scenarios,
             "n_unfilled_demand_avg": (tuple_df["demand"] - tuple_df["trips"]).sum()
