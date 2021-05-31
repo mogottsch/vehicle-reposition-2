@@ -12,6 +12,32 @@ from modules.stochastic_program.stochastic_program import StochasticProgram
 
 
 class StochasticProgramFactory(MeasureTimeTrait):
+    """
+    The Stochastic Program Factory transforms the input data for a stochastic
+    program from dataframes to dictionaries and also exctracts metadata.
+    It can create stochastic an arbitrary amount of stochastic programs, passing
+    the transformed data to each of them.
+
+    Attributes
+    ----------
+    parameters_ready : bool
+        Indicactes whether the input data was transformed (read only)
+    initial_allocation_ready : bool
+        Indicates whether the initial allocation was set, which is
+        necessary to create a stochastic program (read only)
+
+    Methods
+    -------
+    set_initial_allocation(fleet_capacity)
+        Takes the fleet capacity of each vehicle type and creates an
+        initial allocation of vehicles. At the moment vehicles get
+        distributed equally between all regions.
+    create_stochastic_program()
+        Creates and returns a new stochastic program with the
+        transformed input data. Note that set_initial_allocation
+        has to be called before.
+    """
+
     _scenarios: DataFrame
     _distances: DataFrame
     _probabilities: DataFrame
@@ -151,9 +177,13 @@ class StochasticProgramFactory(MeasureTimeTrait):
 
     def set_initial_allocation(
         self,
-        _fleet_capacity: dict,
+        fleet_capacity: dict,
     ):
-        self._fleet_capacity = _fleet_capacity
+        """Creates and returns a new stochastic program with the
+        transformed input data. Note that set_initial_allocation
+        has to be called before.
+        """
+        self._fleet_capacity = fleet_capacity
 
         n_regions = len(self._regions)
 
@@ -161,8 +191,8 @@ class StochasticProgramFactory(MeasureTimeTrait):
             index=pd.Index(self._regions, name="hex_ids")
         )
         for vehicle_type in self._vehicle_types:
-            allocation_per_hex = int(_fleet_capacity[vehicle_type] / n_regions)
-            rest = _fleet_capacity[vehicle_type] % n_regions
+            allocation_per_hex = int(fleet_capacity[vehicle_type] / n_regions)
+            rest = fleet_capacity[vehicle_type] % n_regions
 
             _initial_allocation[vehicle_type] = [allocation_per_hex] * n_regions
 

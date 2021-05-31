@@ -2,6 +2,15 @@ from math import sqrt, sin, cos, atan2, radians
 
 
 def calc_distance_haversine(coord1, coord2):
+    """Returns the distance between two given coordiantes in km.
+
+    Parameters
+    ----------
+    coord1 : tuple, required
+        tuple containing the latitude and longitude of a coordinate.
+    coord2 : tuple, required
+        tuple containing the latitude and longitude of a coordinate.
+    """
     lat1, lon1 = coord1
     lat2, lon2 = coord2
     # approximate radius of earth in km

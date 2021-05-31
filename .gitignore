@@ -7,3 +7,4 @@
 /src/notebooks/experiments/
 /debug/
 __pycache__/
+*.log

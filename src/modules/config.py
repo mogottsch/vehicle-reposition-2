@@ -8,7 +8,7 @@ PATH_DIR_TRIPS_RAW = os.path.join(
 
 # --- Model Configuration ---
 
-H3_RESOLUTION = 6
+H3_RESOLUTION = 7
 PERIOD_DURATION = 12  # in hours
 RELOCATION_PERIODS_INDEX = [0]
 MODE_IS_WEEKEND = True
@@ -47,9 +47,17 @@ VEHICLE_PARKING_COSTS = {  # eur/2h
 
 # --- Solver options ---
 
-SOLVER = "COIN_CMD"
-SOLVER_PATHS = {"COIN_CMD": os.path.join("/usr", "bin", "cbc")}
-SOLVER_OPTIONS = {"logPath": "log", "msg": 0, "threads": 14}
+SOLVER = "GUROBI"
+SOLVER_PATHS = {
+    "COIN_CMD": "/usr/bin/cbc",
+    "CPLEX_CMD": "/opt/ibm/ILOG/CPLEX_Studio201/cplex/bin/x86-64_linux/cplex",
+}
+SOLVER_OPTIONS = {
+    "logPath": "log",
+    "msg": 0,
+    # "threads": 16
+}
+
 # Solver links
 # COIN_CMD: https://github.com/coin-or/Cbc
 

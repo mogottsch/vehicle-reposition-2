@@ -7,17 +7,30 @@ import branca.colormap as cm
 
 
 def hexagons_dataframe_to_geojson(
-    df_hex, hex_id_field, geometry_field, value_field, file_output=None
+    df_hex, id_field, geometry_field, value_field, file_output=None
 ):
     """Produce the GeoJSON representation containing all geometries in a dataframe
-    based on a column in geojson format (geometry_field)"""
+    based on a column in geojson format (geometry_field).
+
+    Parameters
+    ----------
+    df_hex : DataFrame, required
+        The dataframe where one row represents a specific geometric shape and a value.
+    id_field : string, required
+        The column name of a column which serves as a unique identifier.
+    geometry_field: string, required
+        The column name of the column containing the geometric shape in geojson format.
+    value_field : string, required
+        The column name of the column containing values that should be appended to the
+        results as properties named "value".
+    """
 
     list_features = []
 
-    for i, row in df_hex.iterrows():
+    for _, row in df_hex.iterrows():
         feature = Feature(
             geometry=row[geometry_field],
-            id=row[hex_id_field],
+            id=row[id_field],
             properties={"value": row[value_field]},
         )
         list_features.append(feature)
@@ -36,7 +49,7 @@ def hexagons_dataframe_to_geojson(
 
 def choropleth_map(
     df_aggreg,
-    hex_id_field,
+    id_field,
     geometry_field,
     value_field,
     kind="linear",
@@ -45,8 +58,32 @@ def choropleth_map(
     with_legend=False,
 ):
 
-    """Plots a choropleth map with folium"""
+    """Plots a choropleth map with folium for a dataframe where each row consists of a
+    geometric shape (e.g. a hexagon from h3) and a value, which will be the variable
+    respresented by the choropleth map.
 
+    Parameters
+    ----------
+    df_hex : DataFrame, required
+        The dataframe where one row represents a specific geometric shape and a value.
+    id_field : string, required
+        The column name of a column which serves as a unique identifier.
+    geometry_field: string, required
+        The column name of the column containing the geometric shape in geojson format.
+    value_field : string, required
+        The column name of the column containing values that should be represented by the
+        choropleth map (used for coloring).
+    kind : string
+        Kind describes how the map should be colored according to the values.
+        The possible values are:
+
+        linear
+            color the map linear between the max value (red) and the min value (green)
+        zero_center
+            color the center linear, but seperated for negative and positive values
+            negative values are red, positive values are green and values close to 0
+            are white.
+    """
     plot_map = folium.Map(
         location=(50.94, 6.94),
         zoom_start=9.5,
@@ -59,19 +96,6 @@ def choropleth_map(
 
         custom_cm = cm.LinearColormap(
             ["green", "yellow", "red"], vmin=min_value, vmax=max_value
-        )
-    if kind == "outlier":
-        # for outliers, values would be -1,0,1
-        custom_cm = cm.LinearColormap(["blue", "white", "red"], vmin=-1, vmax=1)
-    if kind == "filled_nulls":
-        min_value = df_aggreg[df_aggreg[value_field] > 0][value_field].min()
-        max_value = df_aggreg[df_aggreg[value_field] > 0][value_field].max()
-        m = round((min_value + max_value) / 2, 0)
-        custom_cm = cm.LinearColormap(
-            ["silver", "green", "yellow", "red"],
-            index=[0, min_value, m, max_value],
-            vmin=min_value,
-            vmax=max_value,
         )
     if kind == "zero_center":
         min_value = df_aggreg[value_field].min()
@@ -86,7 +110,7 @@ def choropleth_map(
 
     # create geojson data from dataframe
     geojson_data = hexagons_dataframe_to_geojson(
-        df_aggreg, hex_id_field, geometry_field, value_field
+        df_aggreg, id_field, geometry_field, value_field
     )
 
     # plot on map
@@ -109,6 +133,3 @@ def choropleth_map(
             custom_cm.add_to(plot_map)
 
     return plot_map
-
-    def base_empty_map():
-        return m
