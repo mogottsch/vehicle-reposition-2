@@ -39,7 +39,7 @@ VEHICLE_STACK_RELOCATIONS = {
 RELOCATION_DRIVER_SALARY = 14  # euro/hour
 
 VEHICLE_PARKING_COSTS = {  # eur/2h
-    "kick_scooter": 0.4,
+    "kick_scooter": 0.05,
     "car": 2,
     "bicycle": 0.1,
 }
@@ -76,6 +76,8 @@ PATH_SPEEDS = os.path.join(ROOT, "data", "speeds.pkl")
 PATH_DISTANCES = os.path.join(ROOT, "data", "distances.pkl")
 PATH_FLEET_SIZE = os.path.join(ROOT, "data", "fleet_size.pkl")
 PATH_INITIAL_ALLOCATION = os.path.join(ROOT, "data", "initial_allocation.pkl")
+
+PATH_SCENARIO_TREE_NODES = os.path.join(ROOT, "data", "scenario_tree_nodes.pkl")
 
 PATH_RESULTS_SUMMARY = os.path.join(ROOT, "data", "results_summary.pkl")
 PATH_RESULTS_VAR_REGION = os.path.join(ROOT, "data", "result_variables_by_region.pkl")
