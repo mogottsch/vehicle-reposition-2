@@ -8,11 +8,12 @@ PATH_DIR_TRIPS_RAW = os.path.join(
 
 # --- Model Configuration ---
 
-H3_RESOLUTION = 7
+H3_RESOLUTION = 8
+H3_RESOLUTION_DOWNSCALING_QUANTILES = [0.9,0.9]
 PERIOD_DURATION = 12  # in hours
 RELOCATION_PERIODS_INDEX = [0]
 MODE_IS_WEEKEND = True
-N_REALIZATIONS = 8
+N_REALIZATIONS = 128
 
 # the number of scenarios is determined by the period duration and the number of different
 # realizations of each random variable
@@ -47,7 +48,7 @@ VEHICLE_PARKING_COSTS = {  # eur/2h
 
 # --- Solver options ---
 
-SOLVER = "GUROBI"
+SOLVER = "CPLEX_PY"
 SOLVER_PATHS = {
     "COIN_CMD": "/usr/bin/cbc",
     "CPLEX_CMD": "/opt/ibm/ILOG/CPLEX_Studio201/cplex/bin/x86-64_linux/cplex",
