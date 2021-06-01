@@ -3,7 +3,7 @@ import json
 import folium
 import branca.colormap as cm
 
-# These functions are copied from https://github.com/uber/h3-py-notebooks and edited.
+# These functions are copied from https://github.com/uber/h3-py-notebooks and edited/extended.
 
 
 def hexagons_dataframe_to_geojson(
@@ -97,17 +97,22 @@ def choropleth_map(
         custom_cm = cm.LinearColormap(
             ["green", "yellow", "red"], vmin=min_value, vmax=max_value
         )
+        custom_opacity = lambda value: fill_opacity
     if kind == "zero_center":
         min_value = df_aggreg[value_field].min()
         max_value = df_aggreg[value_field].max()
 
         cm_positive = cm.LinearColormap(["white", "green"], vmin=0, vmax=max_value)
         cm_negative = cm.LinearColormap(["red", "white"], vmin=min_value, vmax=0)
+        
 
         custom_cm = (
-            lambda value: cm_positive(value) if value > 0 else cm_negative(value)
+            # lambda value: cm_positive(value) if value > 0 else cm_negative(value)
+            lambda value: 'green' if value > 0 else 'red'
         )
-
+        custom_opacity_positive = lambda value: value/max_value
+        custom_opacity_negative = lambda value: ((value))/(min_value)
+        custom_opacity = lambda value: (custom_opacity_positive(value) if value > 0 else custom_opacity_negative(value))*fill_opacity
     # create geojson data from dataframe
     geojson_data = hexagons_dataframe_to_geojson(
         df_aggreg, id_field, geometry_field, value_field
@@ -120,7 +125,7 @@ def choropleth_map(
             "fillColor": custom_cm(feature["properties"]["value"]),
             "color": border_color,
             "weight": 1,
-            "fillOpacity": fill_opacity,
+            "fillOpacity": custom_opacity(feature["properties"]["value"]),
         },
     ).add_to(plot_map)
 

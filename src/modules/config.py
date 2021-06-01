@@ -67,6 +67,8 @@ SOLVER_OPTIONS = {
 
 ROOT = os.path.abspath(os.path.join("..", ".."))
 
+PATH_HEXAGON_RESOLUTION_MAP = os.path.join(ROOT, "data", "hexagon_resolution_map.pkl")
+
 PATH_TRIPS = os.path.join(ROOT, "data", "trips.pkl")
 PATH_TRIPS_GROUPED = os.path.join(ROOT, "data", "trips_grouped.pkl")
 PATH_SCENARIOS = os.path.join(ROOT, "data", "scenarios.pkl")
