@@ -9,11 +9,11 @@ PATH_DIR_TRIPS_RAW = os.path.join(
 # --- Model Configuration ---
 
 H3_RESOLUTION = 8
-H3_RESOLUTION_DOWNSCALING_QUANTILES = [0.9,0.9]
-PERIOD_DURATION = 12  # in hours
+H3_RESOLUTION_DOWNSCALING_QUANTILES = [0.9, 0.9]
+PERIOD_DURATION = 4  # in hours
 RELOCATION_PERIODS_INDEX = [0]
 MODE_IS_WEEKEND = True
-N_REALIZATIONS = 128
+N_REALIZATIONS = 3
 
 # the number of scenarios is determined by the period duration and the number of different
 # realizations of each random variable
@@ -21,7 +21,7 @@ N_REALIZATIONS = 128
 # where |T| is the number of periods, which is equal to 24/PERIDOD_DURATION, because we
 # examining a 24 hour time interval
 N_SCENARIOS = int(N_REALIZATIONS ** (24 / PERIOD_DURATION - 1))
-N_REDUCED_SCNEARIOS = 8
+N_REDUCED_SCNEARIOS = 32
 
 ALL_VEHICLE_TYPES = ["kick_scooter", "bicycle", "car"]  # short trips -> long trips
 VEHICLE_PROFIT = {  # euro / min
