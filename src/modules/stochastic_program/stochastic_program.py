@@ -568,15 +568,7 @@ class StochasticProgram(MeasureTimeTrait):
         )
 
     def solve(self, **kwargs):
-        """Solves the lp and prints objective and status when finished
-
-        Parameters
-        ----------
-        **kwargs
-            will be passed to pulps solver constructor and solve method,
-            see https://coin-or.github.io/pulp for more details
-
-        """
+        """Solves the lp and prints objective and status when finished"""
         self._model.solve(solver=self._get_solver(**SOLVER_OPTIONS, **kwargs))
         print("Status:", LpStatus[self._model.status])
         print("Optimal Value of Objective Function: ", value(self._model.objective))
