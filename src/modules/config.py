@@ -84,5 +84,6 @@ PATH_RESULTS_VAR_REGION = os.path.join(ROOT, "data", "result_variables_by_region
 PATH_RESULTS_VAR_TUPLE = os.path.join(ROOT, "data", "result_variables_by_tuple.pkl")
 PATH_RESULTS_VALUE_STOCHASTIC = os.path.join(ROOT, "data", "results_1.pkl")
 PATH_RESULTS_SINGLE_MODAL_BENCHMARK = os.path.join(ROOT, "data", "results_2.pkl")
+PATH_RESULTS_VALUE_AT_RISK = os.path.join(ROOT, "data", "value_at_risk.pkl")
 
 PATH_DIR_FIGURES = os.path.join(ROOT, "figures")
