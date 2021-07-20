@@ -1,0 +1,6 @@
+name: VEHICLE_REPOSITION
+dependencies:
+  - numpy
+  - pandas
+  - "h3-py"
+  - ipycytoscape

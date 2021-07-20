@@ -153,6 +153,7 @@ https://conda.anaconda.org/conda-forge/linux-64/argon2-cffi-20.1.0-py38h497a2fe_
 https://conda.anaconda.org/conda-forge/noarch/black-21.5b0-pyhd8ed1ab_0.tar.bz2
 https://conda.anaconda.org/conda-forge/linux-64/brotlipy-0.7.0-py38h497a2fe_1001.tar.bz2
 https://conda.anaconda.org/conda-forge/linux-64/cryptography-3.4.7-py38ha5dfef3_0.tar.bz2
+https://conda.anaconda.org/conda-forge/linux-64/h3-py-3.7.3-py38h709712a_1.tar.bz2
 https://conda.anaconda.org/conda-forge/noarch/importlib_metadata-4.0.1-hd8ed1ab_0.tar.bz2
 https://conda.anaconda.org/conda-forge/noarch/jinja2-3.0.0-pyhd8ed1ab_0.tar.bz2
 https://conda.anaconda.org/conda-forge/linux-64/jupyter_core-4.7.1-py38h578d9bd_0.tar.bz2
