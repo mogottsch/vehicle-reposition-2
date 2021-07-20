@@ -9,7 +9,9 @@ For further details concerning the theory behind our model, see ...
 Our implementation is written in python and makes use of various libraries.  
 To quickly install all requirements we recommend using [conda](https://www.anaconda.com/).  
 All necessary requirements can be installed with the help of the `requirements.txt` file.
-To create a new conda environment with all requirements use the following command: `conda create --file requirements.txt -n VEHICLE_REPOSITION`.  
+To create a new conda environment with all requirements use the following command: `conda env create --file requirements.yml`  
+Or if you are using mamba: `mamba env create --file requirements.yml`
+Or if you are running on linux you may also use the explicit requirements, which might be faster: `conda create --file requirements-linux64.txt -n VEHICLE_REPOSITION`.  
 Make sure to select the newly created environment as your jupyter kernel.
 
 ## Project Structure

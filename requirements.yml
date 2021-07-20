@@ -1,5 +1,6 @@
-name: VEHICLE_REPOSITION_TWO
+name: VEHICLE_REPOSITION
 dependencies:
+  - ipykernel
   - numpy
   - pandas
   - "h3-py"
@@ -11,3 +12,4 @@ dependencies:
   - "scikit-learn-extra"
   - branca
   - geojson
+  - pulp
