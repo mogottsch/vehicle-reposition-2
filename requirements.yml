@@ -1,0 +1,13 @@
+name: VEHICLE_REPOSITION_TWO
+dependencies:
+  - numpy
+  - pandas
+  - "h3-py"
+  - ipycytoscape
+  - folium
+  - matplotlib
+  - seaborn
+  - scipy
+  - "scikit-learn-extra"
+  - branca
+  - geojson
