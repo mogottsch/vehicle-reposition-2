@@ -2,7 +2,7 @@
 
 This repository contains the implementation of a relocation algorithm for Free-Floating Vehicle Sharing Systems.
 
-For further details concerning the theory behind our model, see ...
+For further details concerning the theory behind our model, take a look at the paper that is provided in this repository.
 
 ## Installation
 
